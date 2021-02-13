@@ -1,6 +1,5 @@
 import logging
 import requests
-# import json
 from requests.adapters import HTTPAdapter
 
 logging.basicConfig(level=logging.DEBUG)
@@ -19,7 +18,7 @@ class RequestSessionWrapper:
     def request(self, *args, **kwargs):
         request = self.session.request(*args, **kwargs)
         request.encoding = 'utf-8'
-        logging.info(f"Request status code: {request.status_code}")
+        #logging.info(f"Request status code: {request.status_code}")
         return request
         
     def post(self, url, *args, **kwargs):
@@ -29,5 +28,5 @@ class RequestSessionWrapper:
     
     def get(self, url, *args, **kwargs):
         result = self.request('GET', url, *args, **kwargs)
-        logging.info(f"URL: {url}, GET result contetnt: {result.content}")
+        #logging.info(f"URL: {url}, GET result contetnt: {result.content}")
         return result

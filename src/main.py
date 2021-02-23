@@ -11,37 +11,16 @@ Platonus REST API.
 import logging
 import json
 import exception
-import pickle
+#import pickle
+from munch import munchify
 from request import RequestSessionWrapper
-from pydantic.dataclasses import dataclass
-from pydantic import BaseModel, root_validator
-from typing import List
-
-__author__ = "Zhymabek Roman"
-__version__ = "0.01a"
-__license__ = "AGPL-3.0 License"
 
 LOCALE = "ru" # Думаю нету смыла менять на kz/en, фиг поймеш что где как =)
 VERSION = "2.1"
-BUILD_NUMBER = 100
+BUILD_NUMBER = "101"
 LICENCE_TYPE = "college"
 
 logging.basicConfig(level=logging.INFO)
-
-# ToDo - реализовать
-#url = 'https://httpbin.org/post' # Set destination URL here
-#post_fields = {'foo': 'bar'}     # Set POST fields here
-
-# https://stackoverflow.com/a/2278595
-class InnerClassDescriptor(object):
-    def __init__(self, cls):
-        self.cls = cls
-    def __get__(self, instance, baseclass):
-        class Wrapper(self.cls):
-            base_cls = instance
-        Wrapper.__name__ = self.cls.__name__
-        return Wrapper
-
 
 # Base API wrapper class
 class PlatonusAPI(object):
@@ -50,17 +29,11 @@ class PlatonusAPI(object):
     Информации о REST API были получены путем обратной разработки веб приложении и Android клиента, так как в свободном доступе нету ни исходников Платонуса, ни документации (комерческая тайна).
     Кстати говоря, REST API Платонуса скорее всего работает на Java (но это не точно)
     """
-    #__slots__ = ('platonus_url', 'auth_token', 'check_compatibility', 'session')
-    
-    def __init__(self, platonus_url, check_compatibility: bool = True):
-        self.platonus_url = platonus_url
-        self.auth_token = None # ToDo - not working
-        self.check_compatibility = check_compatibility
-
-        self.session = RequestSessionWrapper(self.platonus_url)
-        
-        if self.check_compatibility:
-            self.__check_compatibility_of_API_requests()
+    def __init__(self, platonus_url, check_API_compatibility: bool = True, json_output: bool =False):
+        self.session = RequestSessionWrapper(platonus_url)
+        if check_API_compatibility:
+            self.check_compatibility_of_API_requests()
+        #self.json_output = json_output #ToDO
 
 #    def load_session(self, cookies_file): # ToDo
 #        with open(cookies_file, 'rb') as f:
@@ -71,55 +44,36 @@ class PlatonusAPI(object):
 #        print(f"Request returned cookies: {self.session.return_cookies()}")
 #        with open(cookies_file, 'wb') as f:
 #            pickle.dump((self.session.return_cookies(), self.auth_token), f)
-    @InnerClassDescriptor
-    class login(object):
-        def __init__(self,**kwargs):
-            global auth_type
-            auth_type = self.base_cls.platonus_auth_type().value
-            self.execute(**kwargs)
-            
-        class request_fields(BaseModel):
-            login: str = None
-            IIN: str = None
-            password: str = None
-            
-            @root_validator(pre=True)
-            def check_fields(cls, values):
-                # Ждем с нетерпением нативный Switch-Case в Python 3.10, а то что-то мне не хочется плодить if-else =)
-                if auth_type == 1:
-                    if not values.get('login') or not values.get('password') or values.get('IIN'):
-                        raise exception.NotCorrectLoginCredentials("No login or password creditional. Please enter only login/password values")
-                elif auth_type == 2:
-                    if not values.get('login') or not values.get('password') or not values.get('IIN'):
-                        raise exception.NotCorrectLoginCredentials("No login or password or IIN creditional. Please enter login/password/IIN values")
-                elif auth_type == 3:
-                    if values.get('login') or not values.get('password') or not values.get('IIN'):
-                        raise exception.NotCorrectLoginCredentials("No IIN or password creditional. Please enter only IIN/password values")
-                elif auth_type == 4:
-                    if values.get('login') or values.get('password') or values.get('IIN'):
-                        raise exception.NotCorrectLoginCredentials("Platonus doesn requere login creditionals")
-                
-                return values
-            
-        class response_fields(BaseModel):
-            login_status: str
-            auth_token: str = None
-            personID: int = None
-            personType: int = None
-            message: str = None
-            
-        def execute(self, **kwargs):
-            request = json.dumps(dict(self.request_fields(**kwargs)), ensure_ascii=False).encode('utf8')
-            response = self.response_fields(**self.base_cls.session.post('/rest/api/login', data=request).json())
+
+    def login(self, username  = None, password  = None, IIN = None):
+
+        auth_type = self.platonus_auth_type()['value']
+
+        # Ждем с нетерпением нативный Switch-Case в Python 3.10, а то что-то мне не хочется плодить if-else =)
+        if auth_type == "1":
+            if not username or not password or IIN:
+                raise exception.NotCorrectLoginCredentials("Укажите только login/password значения для авторизации в Платонус")
+        elif auth_type == "2":
+            if not username or not password or not IIN:
+                raise exception.NotCorrectLoginCredentials("Укажите только login/password/IIN значения для авторизации в Платонус")
+        elif auth_type == "3":
+            if username or not password or not IIN:
+                raise exception.NotCorrectLoginCredentials("Укажите только password/IIN значения для авторизации в Платонус")
+        elif auth_type == "4":
+            if username or password or IIN:
+                raise exception.NotCorrectLoginCredentials("Для авторизации в Платонус не требуется ввод учетных данных")
         
-            if response.login_status == "invalid":
-                #logging.warning("Your password or username seems is not correct!")
-                raise exception.NotCorrectLoginCredentials(response.message)
+        params = dict(login=username, password=password, IIN=IIN)
+        response = self.session.post('/rest/api/login', json=params).json()
         
-            #logging.info(f"Ваш авторизационный токен: {response.auth_token}")
-            self.base_cls.auth_token = response.auth_token
+        if response['login_status'] == "invalid":
+            raise exception.NotCorrectLoginCredentials(response.message)
+        
+        logging.info(f"Ваш авторизационный токен: {response['auth_token']}")
+        self.auth_token = response['auth_token']
     
-    def persion_fio(self):
+    def person_fio(self):
+        """Возврашяет ФИО пользывателя"""
         response = self.session.get('/rest/fio', headers={'token': self.auth_token})
         return response.text
     
@@ -127,140 +81,39 @@ class PlatonusAPI(object):
         response = self.session.get(f'{self.session}/rest/img/profilePicture', stream=True)
         return response.content
         
-    @InnerClassDescriptor
-    class person_info(object):
-      def __init__(self):
-          self.execute()
-          
-      class response_fields(BaseModel):
-            lastName: str
-            firstName: str
-            patronymic: str
-            personType: int
-            photoBase64: str
-            passwordExpired: bool
-            temporaryPassword: bool
-            studentID: int
-            gpa: str
-            courseNumber: int
-            groupName: str
-            professionName: str
-            specializationName: str
-            studyTechnology: int
-            
-      def execute(self):
-          response = self.response_fields(**self.base_cls.session.get('/rest/mobile/personInfo/ru', headers={'token': self.base_cls.auth_token}).json())
-          return repr(response)
-      
-#      def __str__(self):
-#          return self.execute()
-          
-    def student_tasks(self, start_date , end_date, recipient_status):
-        @dataclass
-        class student_tasks_list:
-            assignmentID: int
-            topic: str
-            startDate: str
-            endDate: str
-            files: List
-            recipients: dict
-            studyGroups: dict
-            year: str
-            term: str
-            isDraft: str
-            assessmentProvided: str
-            showRecipients: str
-            status: str
-            statusName: str
-            tutorName: str
-            studyGroupName: str
-            studyGroupID: str
-            mainStudyGroupID: str
-            isMain: str
-            studentID: str
-            assessment: str
-            assessmentWeek: str
-            assignmentRecipientID: str
-            doneRecipientIDs: dict
-            markID: str
-            oldMarkID: str
-            isCurrentMark: str
-            tutorID: str
-            hasAccess: str
-            totalUnreadAnswers: str
-            unreadAnswers: str
-            markTypeName: str
-            isDeletable: str
-            markTypeID: str
-            cipher: str
-            moduleName: str
-            subjectName: str
-            isPractice: str
-            considerTime: int
-            immediatelyStart: int
-            assignedDate: str = None
-            oldEndDate: str = None
-            assignmentText: str = None
-            umks: dict = None
-            cases: dict = None
-            ktp: str = None
-            justification: str = None
-            assessmentMarkDate: str = None
-            assessmentSymbol: str = None
-            recipientName: str = None
-            senderName: str = None
-            inProgressStats: str = None
-            pair: str = None
-            theme: int = None
-            startTime: int = None
-            finishTime: int = None
-            startTimeStr: int = None
-            finishTimeStr: int = None
-            controlWorkDate: int = None
-            markName: str = None
-            groupp: str = None
+    def person_info(self):
+        """
+        Возврашяет информацию о пользывателе
+        Возвращаемые значения:
+            lastName - Фамилия
+            firstName - Имя
+            patronymic - Отчество
+            personType - Тип пользывателя = 1 - ученик
+                                            0 - учитель
+            photoBase64 - Фотография пользывателя в base64
+            passwordExpired - Истек ли пароль пользывателя (bool значение)
+            temporaryPassword - Стоит ли временный пароль (bool значение)
+            studentID - ID ученика
+            gpa - бог знает, скорее всего средяя оценка по всем урокам
+            courseNumber - курс ученика
+            groupName - название группы
+            professionName - название специальности
+            specializationName - название специализации
+            studyTechnology - тип обучаемой технологии = 2 - по оценкам (5/4/3/2) (но это не точно)
+        """
+        return self.session.get('/rest/mobile/personInfo/ru', headers={'token': self.auth_token}).json()
 
-        @dataclass
-        class response_fields:
-            total: int
-            studentTasks: List[student_tasks_list]
-
-        return response_fields(**self.session.post('/rest/assignments/studentTasks/-1/1', headers={'token': self.auth_token}, json={"countInPart": "1000", "endDate": end_date, "partNumber": "0", "recipientStatus": recipient_status, "startDate": start_date, "studyGroupID": "-1", "subjectID": "-1", "term": "-1", "topic": "", "tutorID": "-1", "year": "-1"}).json())
+    def student_tasks(self, count_in_part, part_number, start_date, end_date, recipient_status, topic = "", study_group_id = "-1", subject_id = "-1", tutor_id = "-1", term = "-1", year = "-1"):
+        params = dict(countInPart=count_in_part, endDate=end_date, partNumber=part_number, recipientStatus=recipient_status, startDate=start_date, studyGroupID=study_group_id, subjectID=subject_id, term=term, topic=topic, tutorID=tutor_id, year=year)
+        return self.session.post('/rest/assignments/studentTasks/-1/1', headers={'token': self.auth_token}, json=params).json()
 
     def student_journal(self):
-        @dataclass
-        class exams_list:
-            name: str
-            mark: str
-            markTypeId: int
 
-        @dataclass
-        class subject_fields:
-            subjectName: str
-            totalMark: str
-            centerMark: int
-            color: str
-            box_height: str
-            subjectID: int
-            exams: List[exams_list]
-            
-        @dataclass
-        class response_fields:
-            __root__: List[subject_fields]
-            
-        return response_fields(self.session.get('/rest/api/journal/2020/2/ru', headers={'token': self.auth_token}).json()).__root__
+        return self.session.get('/rest/api/journal/2020/2/ru', headers={'token': self.auth_token}).json()
        
     def recipient_statuses_list(self):
-        @dataclass
-        class recipients_list:
-            name: str
-            ID: int
 
-        @dataclass
-        class response_fields:
-            recipientStatuses: List[recipients_list]
-                
-        return response_fields(**self.session.get('/rest/assignments/recipientStatuses/1',  headers={'token': self.auth_token}).json())
+        return self.session.get('/rest/assignments/recipientStatuses/1',  headers={'token': self.auth_token}).json()
 
     def platonus_icon(self, icon_size = "small"):
         """
@@ -274,17 +127,10 @@ class PlatonusAPI(object):
     def platonus_server_time(self):
         """
         Возвращает серверное время Плаонуса
-        Старый API REST URL:
-              в "VERSION": "2.1", "BUILD_NUMBER": "60" = /menuTimeDate
+        ВНИМАНИЕ: АДРЕС REST API МЕНЯЕТСЯ В РАЗНЫХ ВЕРСИЯХ ПЛАТОНУСА!
+        Старый API REST URL: /menuTimeDate
         """
-        @dataclass
-        class response_fields:
-            hour: int
-            minute: int
-            date: str
-            dayOfWeek: str
-
-        return response_fields(**self.session.get('/rest/api/menu/menu_time_date/ru').json())
+        return self.session.get('/rest/api/menu/menu_time_date/ru').json()
     
     def platonus_auth_type(self):
         """
@@ -295,41 +141,25 @@ class PlatonusAPI(object):
                     3 - ИИН и пароль
                     4 - ничего (?)
         """
-        @dataclass
-        class response_fields:
-            value: int
-        
-        return response_fields(**self.session.get('/rest/api/authType').json())
+        return self.session.get('/rest/api/authType').json()
     
-    @InnerClassDescriptor
-    class rest_api_information(object):
+    def rest_api_information(self):
         """
         Возвращает данные об Платонусе
         """
-        @dataclass
-        class response_fields:
-            productName: str
-            VERSION: str
-            BUILD_NUMBER: int
-            year: int
-            developerLink: str
-            developerName: str
-            licenceType: str
+        return self.session.get('/rest/api/version').json()
             
-        def __init__(self):
-            self.execute()
-        
-        def execute(self):
-            return self.response_fields(**self.base_cls.session.get('/rest/api/version').json())
-            
-    @InnerClassDescriptor
-    class __check_compatibility_of_API_requests(object):
-        def __init__(self):
-            rest_api_info = self.base_cls.rest_api_information()
+    def check_compatibility_of_API_requests(self):
+        """
+        Проверяет совместимость данной библиотеки с Platonus сайтом. Некоторые адреса REST API,
+        а также передаваемые значения могут быть изменены в некоторых версиях Платонуса (например platonus_server_time())
+        """
+        rest_api_info = self.rest_api_information()
 
-#            assert rest_api_info.BUILD_NUMBER == BUILD_NUMBER, "This API wrapper seems is outdated! Please check API requests!"
-#            assert rest_api_info.VERSION == VERSION, "This API wrapper seems is outdated! Please check API requests!"
-#            assert rest_api_info.licenceType == LICENCE_TYPE, f"This Platonus API Wraper dedicated for colleges, not for {rest_api_info.licenceType}"
+        api_compatibility_warn = "Это библиотека не была протестирована c текущей версии сайта Платонуса! Используйте библиотеку на свой страх и риск"
+        assert rest_api_info['BUILD_NUMBER'] == BUILD_NUMBER, api_compatibility_warn
+        assert rest_api_info['VERSION'] == VERSION, api_compatibility_warn
+        assert rest_api_info['licenceType'] == LICENCE_TYPE, f"This Platonus API Wraper dedicated for colleges, not for {rest_api_info['licenceType']}"
         
     def logout(self):
         self.session.post('/rest/api/logout/', headers={'token': self.auth_token})

@@ -131,4 +131,3 @@ dmypy.json
 # Platonus config file (url, login credentials)
 config.py
 garbage/
-test.py

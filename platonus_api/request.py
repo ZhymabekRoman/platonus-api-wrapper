@@ -1,5 +1,6 @@
 import logging
 import requests
+import exception
 from requests.adapters import HTTPAdapter
 
 logging.basicConfig(level=logging.INFO)
@@ -17,9 +18,19 @@ class RequestSessionWrapper:
     
     def request(self, method, url, *args, **kwargs):
         response = self.session.request(method, f"{self.base_url}{url}", *args, **kwargs, timeout=10.0)
+        request_inf = f"URL: {url}, status code: {response.status_code}, {method} response contetnt: {response.content}"
+        
+        if response.status_code == 401:
+            raise exception.InvalidToken("Seems login session is timeout")
+        elif response.status_code == 404:
+            raise exception.ServerError(request_inf)
+        elif 402 <= response.status_code:
+            if 500 >= response.status_code:
+                raise exception.ServerError(request_inf)
+                
         #response.raise_for_status()
         response.encoding = 'utf-8'
-        #logging.info(f"URL: {url}, status code: {response.status_code}, {method} response contetnt: {response.content}")
+        #logging.info(request_inf)
         return response
         
     def post(self, url, *args, **kwargs):
@@ -30,8 +41,8 @@ class RequestSessionWrapper:
         response = self.request('GET', url, *args, **kwargs)
         return response
 
-    def load_cookies(self, cookies):
-        self.session.cookies.update(cookies)
+    def load_session(self, session):
+        self.session = session
 
-    def return_cookies(self):
-        return self.session.cookies
+    def save_session(self):
+        return self.session

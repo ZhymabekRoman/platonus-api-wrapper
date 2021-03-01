@@ -1,6 +1,6 @@
 import logging
 import requests
-import exception
+from platonus_api import exception
 from requests.adapters import HTTPAdapter
 
 logging.basicConfig(level=logging.INFO)

@@ -9,11 +9,10 @@ Platonus REST API.
 """
 
 import logging
-import exception
-from enum import Enum
+from platonus_api import exception
 import pickle
 from munch import munchify
-from request import RequestSessionWrapper
+from platonus_api.request import RequestSessionWrapper
 
 VERSION = "2.1"
 BUILD_NUMBER = "101"
@@ -34,12 +33,6 @@ class PlatonusAPI(object):
                           en - English
         check_API_compatibility -  Проверка на совместимость данной библиотеки с Platonus сайтом.
     """
-    class Modules(Enum):
-        PROFILE = "student"
-        JOURNAL = "studentregister"
-        CURRENT_JOURNAL = "current_progress_gradebook_student"
-        ASSIGNMENT = "assignment"
-        STUDY_ROOM = "studyroom"
 
     def __init__(self, platonus_url, language: str = "ru", check_API_compatibility: bool = True):
         self.session = RequestSessionWrapper(platonus_url)
@@ -71,10 +64,10 @@ class PlatonusAPI(object):
         # Ждем с нетерпением нативный Switch-Case в Python 3.10, а то что-то мне не хочется плодить if-else =)
         if auth_type == "1":
             if not username or not password or IIN:
-                raise exception.NotCorrectLoginCredentials("Укажите только login/password значения для авторизации в Платонус")
+                raise exception.NotCorrectLoginCredentials("Укажите только username/password значения для авторизации в Платонус")
         elif auth_type == "2":
             if not username or not password or not IIN:
-                raise exception.NotCorrectLoginCredentials("Укажите только login/password/IIN значения для авторизации в Платонус")
+                raise exception.NotCorrectLoginCredentials("Укажите только username/password/IIN значения для авторизации в Платонус")
         elif auth_type == "3":
             if username or not password or not IIN:
                 raise exception.NotCorrectLoginCredentials("Укажите только password/IIN значения для авторизации в Платонус")
@@ -215,9 +208,13 @@ class PlatonusAPI(object):
         response = self.session.get('/rest/api/version').json()
         return munchify(response)
     
-    def has_module(self, module: Modules):
+    def has_module(self, module):
         """
-
+        PROFILE = "student"
+        JOURNAL = "studentregister"
+        CURRENT_JOURNAL = "current_progress_gradebook_student"
+        ASSIGNMENT = "assignment"
+        STUDY_ROOM = "studyroom"
         """
         return module
         #response = self.session.get(f'/api/person/hasModule/{module}', headers={'token': self.auth_token}).json()
@@ -249,6 +246,8 @@ class PlatonusAPI(object):
             language = "2"
         elif self.language == "en":
             language = "3"
+        else:
+            pass
         return language
      
     def logout(self):

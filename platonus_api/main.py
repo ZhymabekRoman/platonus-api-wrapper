@@ -12,7 +12,7 @@ import logging
 from platonus_api import exception
 import pickle
 from munch import munchify
-from platonus_api.request import RequestSessionWrapper
+from platonus_api.request import RequestSessionWrapper, URLNormalizer, URLValidator
 
 VERSION = "2.1"
 BUILD_NUMBER = "101"
@@ -23,7 +23,7 @@ logging.basicConfig(level=logging.INFO)
 # Base API wrapper class
 class PlatonusAPI(object):
     """
-    Главный класс для работы с Платонус. Взаимодействие происходит на уровне REST API. 
+    Главный класс для работы с Платонус. Взаимодействие происходит на уровне REST API.
     Информации о REST API были получены путем обратной разработки веб приложении и Android клиента, так как в свободном доступе нету ни исходников Платонуса, ни документации (комерческая тайна).
     REST API Платонуса скорее всего работает на Java (но это не точно)
     Принимаемые аргументы:
@@ -31,11 +31,15 @@ class PlatonusAPI(object):
         language - язык = ru - Русскии
                           kz - Казахскии
                           en - English
+        context - корневой контекст URL адреса, где находится Платонус, обычно это /. К примеру колледж может на сайт example.kz установить Wordpress
+            и вести там главную страницу колледжа, а Платонус поставить на example.kz/platonus, вот как раз /platonus является контекстом Платонуса
         check_API_compatibility -  Проверка на совместимость данной библиотеки с Platonus сайтом.
     """
 
-    def __init__(self, platonus_url, language: str = "ru", check_API_compatibility: bool = True):
-        self.session = RequestSessionWrapper(platonus_url)
+    def __init__(self, platonus_url, language: str = "ru", context: str = "/", check_API_compatibility: bool = True):
+        URLValidator(platonus_url)
+        base_platonus_url = URLNormalizer(platonus_url, context)
+        self.session = RequestSessionWrapper(base_platonus_url)
         self.language = language
         self.auth_token = None
         if check_API_compatibility:
@@ -50,7 +54,7 @@ class PlatonusAPI(object):
         with open(session_file, 'wb') as f:
             pickle.dump((self.session.save_session(), self.auth_token), f)
 
-    def login(self, username  = None, password  = None, IIN = None):
+    def login(self, username=None, password=None, IIN=None):
         """
         Авторизация в Платонус
         Принимаемые аргументы:
@@ -74,33 +78,33 @@ class PlatonusAPI(object):
         elif auth_type == "4":
             if username or password or IIN:
                 raise exception.NotCorrectLoginCredentials("Для авторизации в Платонус не требуется ввод учетных данных")
-            
+
         header = dict(language=self.language_num)
         params = dict(login=username, password=password, IIN=IIN)
-        response = munchify(self.session.post('/rest/api/login', json=params, headers=header).json())
-        
+        response = munchify(self.session.post('rest/api/login', json=params, headers=header).json())
+
         if response.login_status == "invalid":
             raise exception.NotCorrectLoginCredentials(response['message'])
-        
-        #logging.info(f"Ваш авторизационный токен: {response['auth_token']}")
+
+        # logging.info(f"Ваш авторизационный токен: {response['auth_token']}")
         self.auth_token = response.auth_token
         return response
-    
+
     def person_fio(self):
         """Возврашяет ФИО пользывателя"""
-        response = self.session.get('/rest/fio', headers={'token': self.auth_token})
+        response = self.session.get('rest/fio', headers={'token': self.auth_token})
         return response.text
-    
+
     def person_picture(self):
         """Возврашяет аватарку пользывателя"""
-        response = self.session.get('/rest/img/profilePicture', stream=True)
+        response = self.session.get('rest/img/profilePicture', stream=True)
         return response.content
-    
+
     def person_type_list(self):
         """По идее должен возврящать список типов пользывателей Platonus, но плчему-то ничего не возвращяет, нафиг его тогда  реализовали?!"""
-        response = self.session.get(f'/rest/api/person/personTypeList/{self.language}').json()
+        response = self.session.get(f'rest/api/person/personTypeList/{self.language}').json()
         return munchify(response)
-        
+
     def person_info(self):
         """
         Возврашяет информацию о пользывателе
@@ -121,27 +125,27 @@ class PlatonusAPI(object):
             specializationName - название специализации
             studyTechnology - тип обучаемой технологии = 2 - по оценкам (5/4/3/2) (но это не точно)
         """
-        response = self.session.get(f'/rest/mobile/personInfo/{self.language}', headers={'token': self.auth_token}).json()
+        response = self.session.get(f'rest/mobile/personInfo/{self.language}', headers={'token': self.auth_token}).json()
         return munchify(response)
-        
-    def student_tasks(self, count_in_part, part_number, start_date, end_date, recipient_status, topic = "", study_group_id = "-1", subject_id = "-1", tutor_id = "-1", term = "-1", year = "-1"):
+
+    def student_tasks(self, count_in_part, part_number, start_date, end_date, recipient_status, topic="", study_group_id="-1", subject_id="-1", tutor_id="-1", term = "-1", year="-1"):
         """Возвращяет все задания ученика"""
         params = dict(countInPart=count_in_part, endDate=end_date, partNumber=part_number, recipientStatus=recipient_status, startDate=start_date, studyGroupID=study_group_id, subjectID=subject_id, term=term, topic=topic, tutorID=tutor_id, year=year)
-        return self.session.post(f'/rest/assignments/studentTasks/-1/{self.language_num}', headers={'token': self.auth_token}, json=params).json()
-        
+        return self.session.post(f'rest/assignments/studentTasks/-1/{self.language_num}', headers={'token': self.auth_token}, json=params).json()
+
     def study_years_list(self):
-        response = self.session.get(f'/rest/mobile/student/studyYears/{self.language}',  headers={'token': self.auth_token}).json()
+        response = self.session.get(f'rest/mobile/student/studyYears/{self.language}', headers={'token': self.auth_token}).json()
         return munchify(response)
-    
+
     def get_marks_by_date(self):
-        response = self.session.get(f'/assignments/assignedYears/{self.language}',  headers={'token': self.auth_token}).json()
+        response = self.session.get(f'assignments/assignedYears/{self.language}', headers={'token': self.auth_token}).json()
         return munchify(response)
-    
+
     def terms_list(self):
         """Возвращяет список семестров"""
-        response = self.session.get(f'/rest/mobile/tutor/terms/{self.language}',  headers={'token': self.auth_token}).json()
+        response = self.session.get(f'rest/mobile/tutor/terms/{self.language}', headers={'token': self.auth_token}).json()
         return munchify(response)
-        
+
     def student_journal(self, year: int, term: int):
         """
         Возвращяет журнал ученика
@@ -149,23 +153,23 @@ class PlatonusAPI(object):
             year - год
             term - семестр
         """
-        response = self.session.get(f'/rest/api/journal/{year}/{term}/{self.language}', headers={'token': self.auth_token}).json()
+        response = self.session.get(f'rest/api/journal/{year}/{term}/{self.language}', headers={'token': self.auth_token}).json()
         return munchify(response)
-       
+
     def recipient_statuses_list(self):
         """Возвращяет список всех возможных статусов задании"""
-        response = self.session.get(f'/rest/assignments/recipientStatuses/{self.language_num}',  headers={'token': self.auth_token}).json()
+        response = self.session.get(f'rest/assignments/recipientStatuses/{self.language_num}', headers={'token': self.auth_token}).json()
         return munchify(response)
-        
-    def platonus_icon(self, icon_size = "small"):
+
+    def platonus_icon(self, icon_size="small"):
         """
         Возврашяет иконку Плаонуса
         Принимаемые аргументы:
             icon_size = принимает размер иконки: small или big
         """
-        response = self.session.get(f'/img/platonus-logo-{icon_size}.png', stream=True)
+        response = self.session.get(f'img/platonus-logo-{icon_size}.png', stream=True)
         return response.content
-        
+
     def platonus_server_time(self):
         """
         Возвращает текущее серверное время Плаонуса
@@ -177,9 +181,9 @@ class PlatonusAPI(object):
             date - дата
             dayOfWeek - день недели
         """
-        response = self.session.get(f'/rest/api/menu/menu_time_date/{self.language}').json()
+        response = self.session.get(f'rest/api/menu/menu_time_date/{self.language}').json()
         return munchify(response)
-    
+
     def platonus_auth_type(self):
         """
         Возвращает тип авторизации в Платонус
@@ -189,9 +193,9 @@ class PlatonusAPI(object):
                     3 - ИИН и пароль
                     4 - ничего (?)
         """
-        response = self.session.get('/rest/api/authType').json()
+        response = self.session.get('rest/api/authType').json()
         return munchify(response)
-    
+
     def rest_api_information(self):
         """
         Возвращает данные об Платонусе
@@ -205,9 +209,9 @@ class PlatonusAPI(object):
             licenceType - тип лицензии = college - колледж
                                          university - университет
         """
-        response = self.session.get('/rest/api/version').json()
+        response = self.session.get('rest/api/version').json()
         return munchify(response)
-    
+
     def has_module(self, module):
         """
         PROFILE = "student"
@@ -217,9 +221,9 @@ class PlatonusAPI(object):
         STUDY_ROOM = "studyroom"
         """
         return module
-        #response = self.session.get(f'/api/person/hasModule/{module}', headers={'token': self.auth_token}).json()
+        #response = self.session.get(f'api/person/hasModule/{module}', headers={'token': self.auth_token}).json()
         #return munchify(response)
-        
+
     def check_compatibility_of_API_requests(self):
         """
         Проверяет совместимость данной библиотеки с Платонусом. Некоторые адреса REST API,
@@ -231,7 +235,7 @@ class PlatonusAPI(object):
         assert rest_api_info.BUILD_NUMBER == BUILD_NUMBER, api_compatibility_warn
         assert rest_api_info.VERSION == VERSION, api_compatibility_warn
         assert rest_api_info.licenceType == LICENCE_TYPE, f"This Platonus API Wraper dedicated for colleges, not for {rest_api_info['licenceType']}"
-     
+
     @property
     def language_num(self):
         """
@@ -249,6 +253,6 @@ class PlatonusAPI(object):
         else:
             pass
         return language
-     
+
     def logout(self):
-        self.session.post('/rest/api/logout/', headers={'token': self.auth_token})
+        self.session.post('rest/api/logout/', headers={'token': self.auth_token})

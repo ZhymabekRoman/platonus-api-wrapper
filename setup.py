@@ -6,6 +6,6 @@ setup(
     version='0.1a',
     description='Platonus API wrapper',
     url='https://github.com/ZhymabekRoman/Platonus_API_Wrapper',
-    install_requires=['munch'],
+    install_requires=['munch', 'requests'],
     packages=['platonus_api'],
-) 
+)

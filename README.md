@@ -1,2 +1,20 @@
-# [WIP] Platonus_API_Wrapper
-###  Platonus_API_Wrapper- Non-official Platonus API wrapper, written on Python3
+# [WIP] Platonus API Wrapper - неофициальная Python библиотека для работы с Платонусом
+
+Делаю то, что по определённым причинам не сделали разработчики Платонуса.
+
+## ВНИМАНИЕ!
+ПРОЕКТ В ПРОЦЕССЕ РАЗРАБОТЧИКИ! ИСПОЛЬЗУЙТЕ НА СВОИ СТРАХ И РИСК
+
+## Введение
+Эта библиотека предоставляется Python интерфейс для никем незадокументированного и сделанного только для себя REST API Платонуса.
+
+## Установка
+В данное время Вы можете установить библиотеку из исходного кода с помощью:
+```
+$ git clone https://github.com/ZhymabekRoman/platonus-api-wrapper --recursive
+$ cd platonus-api-wrapper
+$ python3 setup.py install
+```
+
+## Внесение своего вклада в проект
+Внесение своего вклада максимально приветствуется!

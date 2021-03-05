@@ -91,7 +91,7 @@ def URLValidator(url):
     scheme = url.split('://')[0].lower()
 
     if scheme not in schemes:
-        raise exception.InvalidToken(f"Протокол {scheme} не поддеживается. Поддерживаемые протоколы передачи данных: {schemes}")
+        raise exception.InvalidURL(f"Протокол {scheme} не поддеживается. Поддерживаемые протоколы передачи данных: {schemes}")
 
     if len(urlsplit(url).hostname) > 253:
         raise exception.InvalidURL("URL адрес сайта превышает 253 символов")

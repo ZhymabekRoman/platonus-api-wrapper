@@ -4,3 +4,4 @@ __license__ = "AGPL-3.0 License"
 __email__ = "robanokssamit@yandex.com"
 
 from platonus_api.main import PlatonusAPI
+from platonus_api import exception

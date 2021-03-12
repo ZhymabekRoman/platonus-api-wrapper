@@ -1,5 +1,7 @@
 from setuptools import setup
 from os.path import join, dirname
+import sys
+assert sys.version_info[0] == 3, "Platonus API Wrapper requires Python 3.x"
 
 setup(
     name='platonus_api_wrapper',

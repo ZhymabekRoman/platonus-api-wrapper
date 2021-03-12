@@ -2,7 +2,7 @@ import re
 import logging
 import requests
 from urllib.parse import urlsplit, urlparse
-from platonus_api import exception
+import .exception
 from requests.adapters import HTTPAdapter
 
 logging.basicConfig(level=logging.INFO)
@@ -20,7 +20,7 @@ class RequestSessionWrapper:
 
     def request(self, method, url, *args, **kwargs):
         response = self.session.request(method, f"{self.base_url}{url}", *args, **kwargs, timeout=10.0)
-        request_inf = f"URL: {url}, status code: {response.status_code}, {method} response contetnt: {response.content}"
+        request_info = f"URL: {url}, status code: {response.status_code}, {method} response contetnt: {response.content}"
 
         if response.status_code == 401:
             raise exception.InvalidToken("Seems login session is timeout")
@@ -32,7 +32,7 @@ class RequestSessionWrapper:
 
         #response.raise_for_status()
         response.encoding = 'utf-8'
-        #logging.info(request_inf)
+        #logging.info(request_info)
         return response
 
     def post(self, url, *args, **kwargs):
@@ -97,6 +97,8 @@ def URLValidator(url):
         raise exception.InvalidURL("URL адрес сайта превышает 253 символов")
 
 def URLNormalizer(url, context):
+    URLValidator(url)
+
     parsed_url = urlparse(url)
     result = '{uri.scheme}://{uri.netloc}{context}'.format(uri=parsed_url, context=context)
     return result

@@ -9,10 +9,10 @@ Platonus REST API.
 """
 
 import logging
-from platonus_api import exception
+import .exception
 import pickle
 from munch import munchify
-from platonus_api.request import RequestSessionWrapper, URLNormalizer, URLValidator
+from .request import RequestSessionWrapper, URLNormalizer
 
 VERSION = "2.1"
 BUILD_NUMBER = "101"
@@ -27,34 +27,44 @@ class PlatonusAPI(object):
     Информации о REST API были получены путем обратной разработки веб приложении и Android клиента, так как в свободном доступе нету ни исходников Платонуса, ни документации (комерческая тайна).
     REST API Платонуса скорее всего работает на Java (но это не точно)
     Принимаемые аргументы:
-        platonus_url - URL адресс Платонуса
+        base_url - URL адресс Платонуса
         language - язык = ru - Русскии
                           kz - Казахскии
                           en - English
-        context - корневой контекст URL адреса, где находится Платонус, обычно это /. К примеру колледж может на сайт example.kz установить Wordpress
-            и вести там главную страницу колледжа, а Платонус поставить на example.kz/platonus, вот как раз /platonus является контекстом Платонуса
-        check_API_compatibility -  Проверка на совместимость данной библиотеки с Platonus сайтом.
+        context_path - корневой контекст URL адреса, где находится Платонус, обычно это /. К примеру колледж может на сайт example.kz установить Wordpress
+            и вести там главную страницу колледжа, а Платонус поставить на example.kz/platonus, вот как раз /platonus является контекстом Платонуса.
+            Более подробнее читайте здесь: https://medium.com/javascript-essentials/what-is-context-path-d442b3de164b
+        check_API_compatibility - Проверка на совместимость данной библиотеки с Platonus сайтом.
     """
 
-    def __init__(self, platonus_url, language: str = "ru", context: str = "/", check_API_compatibility: bool = True):
-        URLValidator(platonus_url)
-        base_platonus_url = URLNormalizer(platonus_url, context)
-        self.session = RequestSessionWrapper(base_platonus_url)
+    def __init__(self, base_url: str, language: str = "ru", context_path: str = "/", check_api_compatibility: bool = True):
+        platonus_url = URLNormalizer(base_url, context_path)
+        self.session = RequestSessionWrapper(platonus_url)
         self.language = language
         self.auth_token = None
-        if check_API_compatibility:
+        if check_api_compatibility:
             self.check_compatibility_of_API_requests()
 
-    def load_session(self, session_file):
+    def load_session(self, session_file: str):
+        """
+        Загружает сессию Платонуса из файла. Это позваляет каждый раз не логинится,
+        достаточно залогинится, экспортировать сессию через save_session и в нужый момент зайти в сессию через load_session.
+        ВНИМАНИЕ! У СЕСИИ ЕСТЬ ОПРЕДЕЛННЫЙ СРОК ДЕЙСТИИ, ПОКА НЕ ПОНЯТНО СКОЛЬКО ОНО ДЕЙСТВУЕТ, И КАК ЭТО ЗНАЧЕНИЕ ВЫСТАВЛЯЕТСЯ
+        """
         with open(session_file, 'rb') as f:
             session, self.auth_token = pickle.load(f)
             self.session.load_session(session)
 
-    def save_session(self, session_file):
+    def save_session(self, session_file: str):
+        """
+        Загружает сессию Платонуса в файл. Это позваляет каждый раз не логинится,
+        достаточно залогинится, экспортировать сессию через save_session и в нужый момент зайти в сессию через load_session.
+        ВНИМАНИЕ! У СЕСИИ ЕСТЬ ОПРЕДЕЛННЫЙ СРОК ДЕЙСТИИ, ПОКА НЕ ПОНЯТНО СКОЛЬКО ОНО ДЕЙСТВУЕТ, И КАК ЭТО ЗНАЧЕНИЕ ВЫСТАВЛЯЕТСЯ
+        """
         with open(session_file, 'wb') as f:
             pickle.dump((self.session.save_session(), self.auth_token), f)
 
-    def login(self, username=None, password=None, IIN=None):
+    def login(self, username: str = None, password: str = None, IIN: str = None):
         """
         Авторизация в Платонус
         Принимаемые аргументы:
@@ -62,20 +72,23 @@ class PlatonusAPI(object):
             password - пароль
             IIN - ИИН
         """
+        self._username = username
+        self._password = password
+        self._iin = IIN
 
-        auth_type = self.platonus_auth_type().value
+        __auth_type = self.platonus_auth_type().value
 
         # Ждем с нетерпением нативный Switch-Case в Python 3.10, а то что-то мне не хочется плодить if-else =)
-        if auth_type == "1":
+        if __auth_type == "1":
             if not username or not password or IIN:
                 raise exception.NotCorrectLoginCredentials("Укажите только username/password значения для авторизации в Платонус")
-        elif auth_type == "2":
+        elif __auth_type == "2":
             if not username or not password or not IIN:
                 raise exception.NotCorrectLoginCredentials("Укажите только username/password/IIN значения для авторизации в Платонус")
-        elif auth_type == "3":
+        elif __auth_type == "3":
             if username or not password or not IIN:
                 raise exception.NotCorrectLoginCredentials("Укажите только password/IIN значения для авторизации в Платонус")
-        elif auth_type == "4":
+        elif __auth_type == "4":
             if username or password or IIN:
                 raise exception.NotCorrectLoginCredentials("Для авторизации в Платонус не требуется ввод учетных данных")
 
@@ -84,9 +97,9 @@ class PlatonusAPI(object):
         response = munchify(self.session.post('rest/api/login', json=params, headers=header).json())
 
         if response.login_status == "invalid":
-            raise exception.NotCorrectLoginCredentials(response['message'])
+            raise exception.NotCorrectLoginCredentials(response.message)
 
-        # logging.info(f"Ваш авторизационный токен: {response['auth_token']}")
+        # logging.info(f"Ваш авторизационный токен: {response.auth_token}")
         self.auth_token = response.auth_token
         return response
 
@@ -128,7 +141,7 @@ class PlatonusAPI(object):
         response = self.session.get(f'rest/mobile/personInfo/{self.language}', headers={'token': self.auth_token}).json()
         return munchify(response)
 
-    def student_tasks(self, count_in_part, part_number, start_date, end_date, recipient_status, topic="", study_group_id="-1", subject_id="-1", tutor_id="-1", term = "-1", year="-1"):
+    def student_tasks(self, count_in_part, part_number, start_date, end_date, recipient_status, topic="", study_group_id="-1", subject_id="-1", tutor_id="-1", term="-1", year="-1"):
         """Возвращяет все задания ученика"""
         params = dict(countInPart=count_in_part, endDate=end_date, partNumber=part_number, recipientStatus=recipient_status, startDate=start_date, studyGroupID=study_group_id, subjectID=subject_id, term=term, topic=topic, tutorID=tutor_id, year=year)
         return self.session.post(f'rest/assignments/studentTasks/-1/{self.language_num}', headers={'token': self.auth_token}, json=params).json()
@@ -251,8 +264,14 @@ class PlatonusAPI(object):
         elif self.language == "en":
             language = "3"
         else:
-            pass
+            raise ValueError(f"Unsupported language: {self.language}")
         return language
+
+    @property
+    def is_authed(self):
+        """Checks whether credentials were passed."""
+
+        return True if self._username and self._password else False
 
     def logout(self):
         self.session.post('rest/api/logout/', headers={'token': self.auth_token})

@@ -11,7 +11,7 @@
 ## Установка
 В данное время Вы можете установить библиотеку из исходного кода с помощью pip3:
 ```
-pytohn3 -m pip install https://github.com/ZhymabekRoman/platonus_api_wrapper/archive/main.zip
+python3 -m pip install https://github.com/ZhymabekRoman/platonus_api_wrapper/archive/main.zip
 ```
 
 Или же напрямую через setup.py:

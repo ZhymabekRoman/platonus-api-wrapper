@@ -112,7 +112,7 @@ class PlatonusBase:
     def user_is_authed(self):
         """Checks whether credentials were passed."""
 
-        return True if self._auth_credentials else False
+        return bool(self._auth_credentials)
 
     def __del__(self):
         """
@@ -168,8 +168,9 @@ class PlatonusAPI(PlatonusBase):
 
     def person_type_list(self):
         """По идее должен возврящать список типов пользывателей Platonus, но плчему-то ничего не возвращяет, нафиг его тогда  реализовали?!"""
-        response = self.session.get(self.api.person_type_list).json(object_hook=dict2object)
-        return response
+        return self.session.get(self.api.person_type_list).json(
+            object_hook=dict2object
+        )
 
     @login_required
     def person_fio(self):
@@ -198,31 +199,32 @@ class PlatonusAPI(PlatonusBase):
             specializationName - название специализации
             studyTechnology - тип обучаемой технологии = 2 - по оценкам (5/4/3/2) (но это не точно)
         """
-        response = self.session.get(self.api.person_info).json(object_hook=dict2object)
-        return response
+        return self.session.get(self.api.person_info).json(object_hook=dict2object)
 
     @login_required
     def student_tasks(self, countInPart, endDate, partNumber, recipientStatus, startDate, studyGroupID="-1", subjectID="-1", term="-1", topic="", tutorID="-1", year="-1"):
         """Возвращяет все задания ученика"""
         payload = generate_payload(**locals())
-        response = self.session.post(self.api.student_tasks, payload).json(object_hook=dict2object)
-        return response
+        return self.session.post(self.api.student_tasks, payload).json(
+            object_hook=dict2object
+        )
 
     @login_required
     def study_years_list(self):
-        response = self.session.get(self.api.study_years_list).json(object_hook=dict2object)
-        return response
+        return self.session.get(self.api.study_years_list).json(
+            object_hook=dict2object
+        )
 
     @login_required
     def get_marks_by_date(self):
-        response = self.session.get(self.api.get_marks_by_date).json(object_hook=dict2object)
-        return response
+        return self.session.get(self.api.get_marks_by_date).json(
+            object_hook=dict2object
+        )
 
     @login_required
     def terms_list(self):
         """Возвращяет список семестров"""
-        response = self.session.get(self.api.terms_list).json(object_hook=dict2object)
-        return response
+        return self.session.get(self.api.terms_list).json(object_hook=dict2object)
 
     @login_required
     def student_journal(self, year: int, term: int):
@@ -232,14 +234,16 @@ class PlatonusAPI(PlatonusBase):
             year - год
             term - семестр
         """
-        response = self.session.get(self.api.student_journal(year, term)).json(object_hook=dict2object)
-        return response
+        return self.session.get(self.api.student_journal(year, term)).json(
+            object_hook=dict2object
+        )
 
     @login_required
     def recipient_statuses_list(self):
         """Возвращяет список всех возможных статусов задании"""
-        response = self.session.get(self.api.recipient_statuses_list).json(object_hook=dict2object)
-        return response
+        return self.session.get(self.api.recipient_statuses_list).json(
+            object_hook=dict2object
+        )
 
     def platonus_icon(self, icon_size: str = "small"):
         """
@@ -260,8 +264,7 @@ class PlatonusAPI(PlatonusBase):
             date - дата
             dayOfWeek - день недели
         """
-        response = self.session.get(self.api.server_time).json(object_hook=dict2object)
-        return response
+        return self.session.get(self.api.server_time).json(object_hook=dict2object)
 
     def rest_api_information(self):
         """
@@ -276,8 +279,7 @@ class PlatonusAPI(PlatonusBase):
             licenceType - тип лицензии = college - колледж
                                          university - университет
         """
-        response = self.session.get('rest/api/version').json(object_hook=dict2object)
-        return response
+        return self.session.get('rest/api/version').json(object_hook=dict2object)
 
     def auth_type(self):
         """
@@ -288,5 +290,4 @@ class PlatonusAPI(PlatonusBase):
                     3 - ИИН и пароль
                     4 - ничего (?)
         """
-        response = self.session.get(self.api.auth_type).json(object_hook=dict2object)
-        return response
+        return self.session.get(self.api.auth_type).json(object_hook=dict2object)

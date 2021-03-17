@@ -51,17 +51,15 @@ class RequestSessionWrapper:
             raise exceptions.LoginSessionExpired("Сессия истекла, возобновите сессию с помощью метода login")
         elif status_code == 404:
             raise exceptions.ServerError(f"Серверная ошибка, попробуйте чуть позже, код ошибки: {status_code}")
-        elif 402 <= status_code:
-            if 500 >= status_code:
+        elif status_code >= 402:
+            if status_code <= 500:
                 raise exceptions.ServerError(f"Серверная ошибка, попробуйте чуть позже, код ошибки: {status_code}")
 
     def post(self, url, data=None, *args, **kwargs):
-        response = self.request('POST', url, data, *args, **kwargs)
-        return response
+        return self.request('POST', url, data, *args, **kwargs)
 
     def get(self, url, data=None, *args, **kwargs):
-        response = self.request('GET', url, data, *args, **kwargs)
-        return response
+        return self.request('GET', url, data, *args, **kwargs)
 
     @property
     def request_session(self):

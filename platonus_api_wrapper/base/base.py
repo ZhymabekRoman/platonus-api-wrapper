@@ -4,6 +4,7 @@
 from . import api
 from ..utils import exceptions
 from ..utils.dict2object import dict2object
+from ..utils.base64 import base64_encode, base64_decode
 
 from ..utils.request import RequestSessionWrapper
 from ..utils.payload import generate_payload
@@ -153,6 +154,8 @@ class PlatonusAPI(PlatonusBase):
 
     @login_required
     def logout(self):
+        self._auth_credentials = {}
+
         response = self.session.post(self.api.logout)
 
         if response.status_code == 204:
@@ -161,10 +164,10 @@ class PlatonusAPI(PlatonusBase):
             return dict2object({"logout_status": "unknown"})
 
     @login_required
-    def person_picture(self):
+    def profile_picture(self):
         """Возврашяет аватарку пользывателя"""
-        response = self.session.get(self.api.person_picture, stream=True)
-        return response.content
+        response = self.session.get(self.api.profile_picture, stream=True).content
+        return base64_decode(response)
 
     def person_type_list(self):
         """По идее должен возврящать список типов пользывателей Platonus, но плчему-то ничего не возвращяет, нафиг его тогда  реализовали?!"""
@@ -206,6 +209,11 @@ class PlatonusAPI(PlatonusBase):
         """Возвращяет все задания ученика"""
         payload = generate_payload(**locals())
         response = self.session.post(self.api.student_tasks, payload).json(object_hook=dict2object)
+        return response
+
+    @login_required
+    def recipient_task_info(self, recipient_task_id):
+        response = self.session.get(self.api.recipient_task_info(recipient_task_id)).json(object_hook=dict2object)
         return response
 
     @login_required

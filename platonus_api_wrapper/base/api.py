@@ -18,7 +18,7 @@ class Methods:
 
         self.person_fio = "rest/fio"
         self.person_info = f'rest/mobile/personInfo/{self.language_code_str}'
-        self.person_picture = "rest/img/profilePicture"
+        self.profile_picture = "rest/img/profilePicture"
         self.person_type_list = f"rest/api/person/personTypeList/{self.language_code_str}"
 
         self.student_tasks = f'rest/assignments/studentTasks/-1/{self.language_code_int}'
@@ -33,6 +33,9 @@ class Methods:
             return "menuTimeDate"
         else:
             return f"rest/api/menu/menu_time_date/{self.language_code_str}"
+
+    def recipient_task_info(self, recipient_task_id):
+        return f"rest/assignments/tutor/assignment/loadRecipientTaskInfo/{self.language_code_int}?assignmentRecipientID={recipient_task_id}"
 
     def student_journal(self, year: int, term: int):
         return f"rest/api/journal/{year}/{term}/{self.language_code_str}"

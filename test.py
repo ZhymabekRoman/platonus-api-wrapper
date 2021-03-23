@@ -23,7 +23,8 @@ elif auth_type == "4":
     input_pswd = None
 
 
-pprint(platonus_session.login(login=input_username, password=input_pswd, IIN=input_IIN))
+pprint(platonus_session.login(login=input_username,
+       password=input_pswd, IIN=input_IIN))
 # platonus_session.load_session("session.pkl")
 pprint(platonus_session.person_fio())
 pprint(platonus_session.person_info())
@@ -35,5 +36,6 @@ pprint(platonus_session.study_years_list())
 pprint(platonus_session.terms_list())
 # platonus_session.save_session("session.pkl")
 pprint(platonus_session.person_type_list())
-pprint(platonus_session.student_tasks(countInPart="20", partNumber="0", recipientStatus="2", startDate="10-01-2021", endDate="23-02-2021"))
+pprint(platonus_session.student_tasks(countInPart="20", partNumber="0",
+       recipientStatus="2", startDate="10-01-2021", endDate="23-02-2021"))
 platonus_session.logout()

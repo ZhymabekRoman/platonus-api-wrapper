@@ -8,13 +8,19 @@ from ..utils.base64 import base64_encode, base64_decode
 
 from ..utils.request import RequestSessionWrapper
 from ..utils.payload import generate_payload
+from ..utils.lru_cacher import timed_lru_cache
+from ..utils.loginizer import login_required
 
 from ..validators import ValidateLoginCredentials
 from ..validators import URLValidator, URLNormalizer
 from ..validators import ValidateLanguage, LanguageCodeToInt
 
+
+import logging
 import pickle
-import functools
+
+from icecream import ic
+from pprint import pprint
 
 """
 Platonus_API_Wrapper
@@ -23,43 +29,24 @@ This library provides a very thin wrapper around the
 Platonus REST API.
 """
 
-
-def login_required(method):
-    """Make sure user is logged in before proceeding"""
-    @functools.wraps(method)
-    def wrapper_login_required(self, *args, **kwargs):
-
-        if not self.user_is_authed:
-            raise exceptions.NotCorrectLoginCredentials("Вы не авторизовались в Платонус. Пожалуйста выполните метод login, и укажите авторизационные данные")
-
-        if not self.auto_relogin_after_session_expires:
-            return method(self, *args, **kwargs)
-
-        try:
-            return method(self, *args, **kwargs)
-        except exceptions.LoginSessionExpired:
-            print("Login session is expired, reloging...")
-            self.login(**self._auth_credentials)
-            return method(self, *args, **kwargs)
-    return wrapper_login_required
+logger = logging.getLogger('platonus_api_wrapper')
 
 
 class PlatonusBase:
     """
     Base class for Platonus API.
 
-    Принимаемые аргументы:
-        base_url - URL адресс Платонуса
-        language - язык = ru - Русскии
-                          kz - Казахскии
-                          en - English
-        context_path - корневой контекст URL адреса, где находится Платонус, обычно это /. К примеру колледж может на сайт example.kz установить Wordpress
+    Args:
+        base_url: URL адресс Платонуса
+        language: язык = ru - Русскии
+                         kz - Казахскии
+                         en - English
+        context_path: корневой контекст URL адреса, где находится Платонус, обычно это /. К примеру колледж может на сайт example.kz установить Wordpress
                     и вести там главную страницу колледжа, а Платонус поставить на example.kz/platonus, вот как раз /platonus является контекстом Платонуса.
                     Более подробнее читайте здесь: https://medium.com/javascript-essentials/what-is-context-path-d442b3de164b
-        check_api_compatibility - проверка на совместимость данной библиотеки с Platonus сайтом.
-        auto_relogin_after_session_expires - автоматическая реавторизация после истекании срока сессии
+        auto_relogin_after_session_expires: автоматическая реавторизация после истекании срока сессии
     """
-    def __init__(self, base_url: str, language: str = "ru", context_path: str = "/", check_api_compatibility: bool = False, auto_relogin_after_session_expires=True):
+    def __init__(self, base_url: str, language: str = "ru", context_path: str = "/", auto_relogin_after_session_expires=True):
         # Проверка URL адреса на валидность
         URLValidator(base_url)
 
@@ -77,6 +64,9 @@ class PlatonusBase:
 
         # Инициализируем хранилище значении авторизационных данных, чтобы можно было автоматическии переавторизоватся в случае истекании сессиии
         self._auth_credentials = {}
+
+        # Инициализируем хранилище закэшированных функции. Это нужно для того чтобы во время выхода из аккаунта (или сесии, logout короче) очистить все закэшированные значения, мало ли.
+        self.__memory_cacher = []
 
         # Инициализируем менеджер REST API методов
         self.api = api.Methods(language, self.rest_api_version)
@@ -101,6 +91,23 @@ class PlatonusBase:
             pickle.dump((self.session.request_session, self._auth_credentials), f)
 
     @property
+    def _cached_functions_list(self):
+        return self.__memory_cacher
+
+    @_cached_functions_list.setter
+    def _cached_functions_list(self, value):
+        for list_value in self.__memory_cacher:
+            if list_value == value:
+                return
+        self.__memory_cacher.append(value)
+
+    @_cached_functions_list.deleter
+    def _cached_functions_list(self):
+        for func in self.__memory_cacher:
+            func.cache_clear()
+        self.__memory_cacher = []
+
+    @property
     def _auth_type_value(self):
         return self.auth_type().value
 
@@ -119,9 +126,12 @@ class PlatonusBase:
         """
         When PlatonusAPI object is deleting - need close all sessions
         """
-        if self.session:
-            del self.session
-
+        try:
+            if self.session:
+                del self.session
+        except AttributeError:
+            logger.warning("Object session is not initialized, ignoring ...")
+            pass
 
 class PlatonusAPI(PlatonusBase):
     """
@@ -133,10 +143,20 @@ class PlatonusAPI(PlatonusBase):
     def login(self, login: str = None, password: str = None, IIN: str = None):
         """
         Авторизация в Платонус
-        Принимаемые аргументы:
-            username - логин
-            password - пароль
-            IIN - ИИН
+        Args:
+            username: логин
+            password: пароль
+            IIN: ИИН
+        Returns:
+            message: В случае если во время авторизации возникнет ошибка (неверный пароль) тогда выдаст сообщение об ошибке
+            login_status: success если авторизация успешна, invalid если были введены не верные авторизационные данные
+            auth_token: авторизационный токен
+            sid: не известно
+            uid: не известно
+            personID: ID пользывателя
+            personType (personRoleTypes): Тип пользывателя - 1: Обучающиеся
+                                                             3: Преподаватель
+                                                             38: Родитель
         """
         payload = generate_payload(**locals())
 
@@ -152,12 +172,29 @@ class PlatonusAPI(PlatonusBase):
 
         return response
 
+    def login_with_eds(self):
+        """Авторизация в Платонус при помощи ЭЦП
+
+        Функция не реализована, т.к. у нас в колледже выключена возможность авторизации по ЭЦП, соответственно я не могу реализовать то, к чему я не имею доступ
+
+        Информация для разработчиков, возможно кто-то сможет реализовать:
+            url: 'rest/api/login/eds'
+            type: 'GET'
+        """
+        raise NotImplementedError("Функция не реализованa")
+
     @login_required
     def logout(self):
-        self._auth_credentials = {}
-
         response = self.session.post(self.api.logout)
 
+        # Очищаем хранилище авторизационных данных, тем самым указывая что пользыватель не авторизован
+        self._auth_credentials = {}
+        # И заодно токен тоже удаляем из хейдера запросов
+        self.session.request_header = {'token': None}
+        # Очищаем хранилище кэша от закэшированных запросов
+        del self._cached_functions_list
+
+        # После отправки запроса на выход из сессии сервер Платонуса ничего не отправляет кроме статус кода
         if response.status_code == 204:
             return dict2object({"logout_status": "success"})
         else:
@@ -165,48 +202,51 @@ class PlatonusAPI(PlatonusBase):
 
     @login_required
     def profile_picture(self):
-        """Возврашяет аватарку пользывателя"""
+        """Возвращает аватарку пользывателя"""
         response = self.session.get(self.api.profile_picture, stream=True).content
         return base64_decode(response)
 
     def person_type_list(self):
-        """По идее должен возврящать список типов пользывателей Platonus, но плчему-то ничего не возвращяет, нафиг его тогда  реализовали?!"""
+        """По идее должен возврящать список типов пользывателей Platonus, но почему-то ничего не возвращяет, нафиг его тогда  реализовали?!"""
         response = self.session.get(self.api.person_type_list).json(object_hook=dict2object)
         return response
 
     @login_required
+    @timed_lru_cache(86400)
     def person_fio(self):
-        """Возврашяет ФИО пользывателя"""
+        """Возвращает ФИО пользывателя"""
         response = self.session.get(self.api.person_fio)
         return response.text
 
     @login_required
+    @timed_lru_cache(60)
     def person_info(self):
         """
-        Возврашяет информацию о пользывателе
-        Возвращаемые значения:
-            lastName - Фамилия
-            firstName - Имя
-            patronymic - Отчество
-            personType - Тип пользывателя = 1 - ученик
-                                            0 - учитель (это не точно)
-            photoBase64 - Фотография пользывателя в base64
-            passwordExpired - Истек ли пароль пользывателя (bool значение)
-            temporaryPassword - Стоит ли временный пароль (bool значение)
-            studentID - ID ученика
-            gpa - бог знает, скорее всего средяя оценка по всем урокам
-            courseNumber - курс ученика
-            groupName - название группы
-            professionName - название специальности
-            specializationName - название специализации
-            studyTechnology - тип обучаемой технологии = 2 - по оценкам (5/4/3/2) (но это не точно)
+        Возвращает информацию о текущем пользывателе
+        Returns:
+            lastName: Фамилия
+            firstName: Имя
+            patronymic: Отчество
+            personType: Тип пользывателя - 1: Обучающиеся
+                                           3: Преподаватель
+                                           38: Родитель
+            photoBase64: Фотография пользывателя в base64
+            passwordExpired: Истек ли пароль пользывателя (bool значение)
+            temporaryPassword: Стоит ли временный пароль (bool значение)
+            studentID: ID обучающегося
+            gpa: бог знает, скорее всего средняя оценка по всем урокам
+            courseNumber: курс ученика
+            groupName: название группы (потока)
+            professionName: название специальности
+            specializationName: название специализации
+            studyTechnology: тип обучаемой технологии = 2 - по оценкам (5/4/3/2) (но это не точно)
         """
         response = self.session.get(self.api.person_info).json(object_hook=dict2object)
         return response
 
     @login_required
     def student_tasks(self, countInPart, endDate, partNumber, recipientStatus, startDate, studyGroupID="-1", subjectID="-1", term="-1", topic="", tutorID="-1", year="-1"):
-        """Возвращяет все задания ученика"""
+        """Возвращает все задания ученика"""
         payload = generate_payload(**locals())
         response = self.session.post(self.api.student_tasks, payload).json(object_hook=dict2object)
         return response
@@ -228,14 +268,14 @@ class PlatonusAPI(PlatonusBase):
 
     @login_required
     def terms_list(self):
-        """Возвращяет список семестров"""
+        """Возвращает список семестров"""
         response = self.session.get(self.api.terms_list).json(object_hook=dict2object)
         return response
 
     @login_required
     def student_journal(self, year: int, term: int):
         """
-        Возвращяет журнал ученика
+        Возвращает журнал ученика
         Принимаемые аргументы: (см. также функцию study_years_list())
             year - год
             term - семестр
@@ -245,53 +285,60 @@ class PlatonusAPI(PlatonusBase):
 
     @login_required
     def recipient_statuses_list(self):
-        """Возвращяет список всех возможных статусов задании"""
+        """Возвращает список всех возможных статусов задании"""
         response = self.session.get(self.api.recipient_statuses_list).json(object_hook=dict2object)
         return response
 
     def platonus_icon(self, icon_size: str = "small"):
         """
-        Возврашяет иконку Плаонуса в формате PNG
-        Принимаемые аргументы:
+        Возвращает иконку Плаонуса в формате PNG
+        Args:
             icon_size = принимает размер иконки: small или big
         """
         response = self.session.get(f'img/platonus-logo-{icon_size}.png', stream=True)
         return response.content
 
+    def emblem_image(self):
+        """Возвращает эмблему колледжа/университета в формате JPG"""
+        response = self.session.get("images/emblem.jpg", stream=True)
+        return response.content
+
+    @timed_lru_cache(30)
     def server_time(self):
         """
         Возвращает текущее серверное время Плаонуса
-        ВНИМАНИЕ: АДРЕС REST API МЕНЯЕТСЯ В РАЗНЫХ ВЕРСИЯХ ПЛАТОНУСА!
-        Возвращяемые значения:
-            hour - час
-            minute - минута
-            date - дата
-            dayOfWeek - день недели
+        Returns:
+            hour: час
+            minute: минута
+            date: дата
+            dayOfWeek: день недели
         """
         response = self.session.get(self.api.server_time).json(object_hook=dict2object)
         return response
 
+    @timed_lru_cache(600)
     def rest_api_information(self):
         """
         Возвращает данные об Платонусе
-        Возвращаемые значения:
-            productName - название продукта
-            VERSION - версия Платонуса
-            BUILD_NUMBER - версия билда Платонуса
-            year - текущии код
-            developerLink - ссылка на сайт разработчиков Платонуса
-            developerName - разработчики
-            licenceType - тип лицензии = college - колледж
-                                         university - университет
+        Returns:
+            productName: название продукта
+            VERSION: версия Платонуса
+            BUILD_NUMBER: версия билда Платонуса
+            year: текущии год
+            developerLink: ссылка на сайт разработчиков Платонуса
+            developerName: разработчики
+            licenceType (appType): тип лицензии / для кого предназначен - college: колледж
+                                                                          university: университет
         """
         response = self.session.get('rest/api/version').json(object_hook=dict2object)
         return response
 
+    @timed_lru_cache(3600)
     def auth_type(self):
         """
         Возвращает тип авторизации в Платонус
-        Возвращаемые значения:
-            value = 1 - логин и пароль
+        Returns:
+            value:  1 - логин и пароль
                     2 - ИИН, логин и пароль
                     3 - ИИН и пароль
                     4 - ничего (?)

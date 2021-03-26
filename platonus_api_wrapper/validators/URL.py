@@ -3,6 +3,12 @@ from urllib.parse import urlsplit, urlparse
 from ..utils import exceptions
 
 def URLValidator(url):
+    """Проверяет, правильный/корректный ли URL адресс
+    Args:
+        url: Принимает URL адресс
+    Raises:
+        InvalidURL: Если URL не корректный
+    """
     # Код взят от сюда: https://github.com/django/django/blob/master/django/core/validators.py
 
     ul = '\u00a1-\uffff'  # Unicode letters range (must not be a raw string).
@@ -48,7 +54,18 @@ def URLValidator(url):
     if len(urlsplit(url).hostname) > 253:
         raise exceptions.InvalidURL("URL адрес сайта превышает 253 символов")
 
+
 def URLNormalizer(url, context):
+    """Корректно конкатенирует URL адресс и контекстный путь
+
+    Обычно пользыватели пишут/передает URL адресс с контекстом. Например: http://www.example.com/ , в этом адресе контекстом является /. Более подробно что такое контексты можете прочитать здесь: https://medium.com/javascript-essentials/what-is-context-path-d442b3de164b
+
+    Args:
+        url: URL адресс
+        context: контекстный путь
+    Returns:
+        Возвращает корректный сконкатенированный URL адресс
+    """
     parsed_url = urlparse(url)
     result = '{uri.scheme}://{uri.netloc}{context}'.format(uri=parsed_url, context=context)
     return result

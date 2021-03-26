@@ -3,6 +3,10 @@ from types import SimpleNamespace
 from .exceptions import NotValidJSON
 
 class json2object(object):
+    """Класс который превращает JSON в объект
+    Args:
+        json_data: JSON который нужно перевести в объект
+    """
     def __init__(self, json_data):
         self.__json_data = self.make_unicode(json_data)
         try:

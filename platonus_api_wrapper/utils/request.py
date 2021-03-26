@@ -1,23 +1,23 @@
 import logging
 import requests
-#from .json2object import json2object
 from . import exceptions
 from requests.adapters import HTTPAdapter
 
+logging.getLogger('urllib3').setLevel(logging.WARNING)
 
-logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("platonus_api_wrapper")
 
 HEADER = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4240.198 Safari/537.36 OPR/72.0.3815.459', 'Content-Type': 'application/json; charset=UTF-8'}
 
 class RequestSessionWrapper:
     """
     Вспомогательный класс, для работы с POST и GET запросами.
-    Принимаемые аргументы:
-        base_url - корневой адресс сайта
-        proxy_dict - словарь прокси серверов
-        timeout - устанавливает таймаут на запросы
-        request_retries - количество попыток после неудачного соединения
-        ssl_verify - позволяет верифицировать SSL-сертификаты для HTTPS-запросов так же, как и браузер
+    Args:
+        base_url: корневой адресс сайта
+        proxy_dict: словарь прокси серверов
+        timeout: устанавливает таймаут на запросы
+        request_retries: количество попыток после неудачного соединения
+        ssl_verify: позволяет верифицировать SSL-сертификаты для HTTPS-запросов так же, как и браузер
     """
     def __init__(self, base_url, proxy_dict={}, timeout=10.0, request_retries=3, ssl_verify=False):
         self.base_url = base_url
@@ -40,7 +40,7 @@ class RequestSessionWrapper:
         except (requests.RequestException, requests.exceptions.ConnectionError) as e:
             raise exceptions.NetworkError(e)
         else:
-            logging.debug(f"URL: {url}, status code: {response.status_code}, {method} response contetnt: {response.content}")
+            logger.debug(f"URL: {self.base_url}{url}, status code: {response.status_code}, {method} response contetnt: {response.content}")
 
             self._raise_by_status_code(response.status_code)
 
@@ -56,10 +56,12 @@ class RequestSessionWrapper:
                 raise exceptions.ServerError(f"Серверная ошибка, попробуйте чуть позже, код ошибки: {status_code}")
 
     def post(self, url, data=None, *args, **kwargs):
+        logger.debug(f"URL: {url}, POST request")
         response = self.request('POST', url, data, *args, **kwargs)
         return response
 
     def get(self, url, data=None, *args, **kwargs):
+        logger.debug(f"URL: {url}, GET request")
         response = self.request('GET', url, data, *args, **kwargs)
         return response
 
@@ -77,7 +79,11 @@ class RequestSessionWrapper:
 
     @request_header.setter
     def request_header(self, header_value):
-        self.__session.headers.update(header_value)
+        for key, value in header_value.items():
+            if value == None:
+                self.__session.headers.pop(key)
+            else:
+                self.__session.headers.update(header_value)
 
     def __dell__(self):
         self.__session.close()

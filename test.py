@@ -1,5 +1,8 @@
+import logging
 from platonus_api_wrapper import PlatonusAPI
 from pprint import pprint
+
+logging.basicConfig(level=logging.DEBUG)
 
 input_url = input("Введите адрес Платонус сайта: ")
 platonus_session = PlatonusAPI(base_url=input_url, language="ru")

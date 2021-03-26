@@ -5,5 +5,6 @@ __email__ = "robanokssamit@yandex.com"
 
 
 from .base import PlatonusAPI
+from .utils import exceptions
 
-__all__ = [PlatonusAPI]
+__all__ = [PlatonusAPI, exceptions]

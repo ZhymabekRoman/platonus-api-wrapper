@@ -122,7 +122,7 @@ class PlatonusBase:
     def user_is_authed(self):
         """Checks whether credentials were passed."""
 
-        return True if self._auth_credentials else False
+        return bool(self._auth_credentials)
 
     def __del__(self):
         """
@@ -133,7 +133,6 @@ class PlatonusBase:
                 del self.session
         except AttributeError:
             logger.warning("Object session is not initialized, ignoring ...")
-            pass
 
 
 class PlatonusAPI(PlatonusBase):
@@ -228,38 +227,42 @@ class PlatonusAPI(PlatonusBase):
     @timed_lru_cache(86400)
     def person_type_list(self):
         """По идее должен возврящать список типов пользывателей Platonus, но почему-то ничего не возвращяет, нафиг его тогда  реализовали?!"""
-        response = self.session.get(self.api.person_type_list).json(object_hook=dict2object)
-        return response
+        return self.session.get(self.api.person_type_list).json(
+            object_hook=dict2object
+        )
 
     @login_required
     @timed_lru_cache(60)
     def student_tasks(self, countInPart, endDate, partNumber, recipientStatus, startDate, studyGroupID="-1", subjectID="-1", term="-1", topic="", tutorID="-1", year="-1"):
         """Возвращает все задания ученика"""
         payload = generate_payload(**locals())
-        response = self.session.post(self.api.student_tasks, payload).json(object_hook=dict2object)
-        return response
+        return self.session.post(self.api.student_tasks, payload).json(
+            object_hook=dict2object
+        )
 
     @login_required
     def recipient_task_info(self, recipient_task_id):
-        response = self.session.get(self.api.recipient_task_info(recipient_task_id)).json(object_hook=dict2object)
-        return response
+        return self.session.get(
+            self.api.recipient_task_info(recipient_task_id)
+        ).json(object_hook=dict2object)
 
     @login_required
     def study_years_list(self):
-        response = self.session.get(self.api.study_years_list).json(object_hook=dict2object)
-        return response
+        return self.session.get(self.api.study_years_list).json(
+            object_hook=dict2object
+        )
 
     @login_required
     def get_marks_by_date(self):
-        response = self.session.get(self.api.get_marks_by_date).json(object_hook=dict2object)
-        return response
+        return self.session.get(self.api.get_marks_by_date).json(
+            object_hook=dict2object
+        )
 
     @login_required
     @timed_lru_cache(43200)
     def terms_list(self):
         """Возвращает список семестров"""
-        response = self.session.get(self.api.terms_list).json(object_hook=dict2object)
-        return response
+        return self.session.get(self.api.terms_list).json(object_hook=dict2object)
 
     @login_required
     @timed_lru_cache(43200)
@@ -270,15 +273,17 @@ class PlatonusAPI(PlatonusBase):
             year - год
             term - семестр
         """
-        response = self.session.get(self.api.student_journal(year, term)).json(object_hook=dict2object)
-        return response
+        return self.session.get(self.api.student_journal(year, term)).json(
+            object_hook=dict2object
+        )
 
     @login_required
     @timed_lru_cache(86400)
     def recipient_statuses_list(self):
         """Возвращает список всех возможных статусов задании"""
-        response = self.session.get(self.api.recipient_statuses_list).json(object_hook=dict2object)
-        return response
+        return self.session.get(self.api.recipient_statuses_list).json(
+            object_hook=dict2object
+        )
 
     def platonus_icon(self, icon_size: str = "small"):
         """
@@ -304,8 +309,7 @@ class PlatonusAPI(PlatonusBase):
             date: дата
             dayOfWeek: день недели
         """
-        response = self.session.get(self.api.server_time).json(object_hook=dict2object)
-        return response
+        return self.session.get(self.api.server_time).json(object_hook=dict2object)
 
     @timed_lru_cache(600)
     def rest_api_information(self):
@@ -321,8 +325,7 @@ class PlatonusAPI(PlatonusBase):
             licenceType (appType): тип лицензии / для кого предназначен - college: колледж
                                                                           university: университет
         """
-        response = self.session.get('rest/api/version').json(object_hook=dict2object)
-        return response
+        return self.session.get('rest/api/version').json(object_hook=dict2object)
 
     @timed_lru_cache(3600)
     def auth_type(self):
@@ -334,8 +337,7 @@ class PlatonusAPI(PlatonusBase):
                     3 - ИИН и пароль
                     4 - ничего (?)
         """
-        response = self.session.get(self.api.auth_type).json(object_hook=dict2object)
-        return response
+        return self.session.get(self.api.auth_type).json(object_hook=dict2object)
 
     @property
     def profile(self):

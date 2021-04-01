@@ -67,5 +67,6 @@ def URLNormalizer(url, context):
         Возвращает корректный сконкатенированный URL адресс
     """
     parsed_url = urlparse(url)
-    result = '{uri.scheme}://{uri.netloc}{context}'.format(uri=parsed_url, context=context)
-    return result
+    return '{uri.scheme}://{uri.netloc}{context}'.format(
+        uri=parsed_url, context=context
+    )

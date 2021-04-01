@@ -24,8 +24,7 @@ class Profile(object):
     @timed_lru_cache(86400)
     def person_id(self):
         """Возвращает ID пользывателя"""
-        response = self.session.get(self.api.person_id).json(object_hook=dict2object)
-        return response
+        return self.session.get(self.api.person_id).json(object_hook=dict2object)
 
     @inheritance_from_base_cls
     @login_required
@@ -58,6 +57,5 @@ class Profile(object):
             specializationName: название специализации
             studyTechnology: тип обучаемой технологии = 2 - по оценкам (5/4/3/2) (но это не точно)
         """
-        response = self.session.get(self.api.profile_info).json(object_hook=dict2object)
-        return response
+        return self.session.get(self.api.profile_info).json(object_hook=dict2object)
 

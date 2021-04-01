@@ -47,23 +47,24 @@ class RequestSessionWrapper:
             return response
 
     def _raise_by_status_code(self, status_code):
-        if status_code == 401:
-            raise exceptions.LoginSessionExpired("Сессия истекла, возобновите сессию с помощью метода login")
-        elif status_code == 404:
+        if (
+            status_code != 401
+            and status_code >= 402
+            and status_code <= 500
+            or status_code == 404
+        ):
             raise exceptions.ServerError(f"Серверная ошибка, попробуйте чуть позже, код ошибки: {status_code}")
-        elif status_code >= 402:
-            if status_code <= 500:
-                raise exceptions.ServerError(f"Серверная ошибка, попробуйте чуть позже, код ошибки: {status_code}")
+
+        elif status_code == 401:
+            raise exceptions.LoginSessionExpired("Сессия истекла, возобновите сессию с помощью метода login")
 
     def post(self, url, data=None, *args, **kwargs):
         logger.debug(f"URL: {url}, POST request")
-        response = self.request('POST', url, data, *args, **kwargs)
-        return response
+        return self.request('POST', url, data, *args, **kwargs)
 
     def get(self, url, data=None, *args, **kwargs):
         logger.debug(f"URL: {url}, GET request")
-        response = self.request('GET', url, data, *args, **kwargs)
-        return response
+        return self.request('GET', url, data, *args, **kwargs)
 
     @property
     def request_session(self):
@@ -80,7 +81,7 @@ class RequestSessionWrapper:
     @request_header.setter
     def request_header(self, header_value):
         for key, value in header_value.items():
-            if value == None:
+            if value is None:
                 self.__session.headers.pop(key)
             else:
                 self.__session.headers.update(header_value)

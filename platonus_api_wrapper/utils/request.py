@@ -9,6 +9,7 @@ logger = logging.getLogger("platonus_api_wrapper")
 
 HEADER = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4240.198 Safari/537.36 OPR/72.0.3815.459', 'Content-Type': 'application/json; charset=UTF-8'}
 
+
 class RequestSessionWrapper:
     """
     Вспомогательный класс, для работы с POST и GET запросами.
@@ -80,7 +81,7 @@ class RequestSessionWrapper:
     @request_header.setter
     def request_header(self, header_value):
         for key, value in header_value.items():
-            if value == None:
+            if value is None:
                 self.__session.headers.pop(key)
             else:
                 self.__session.headers.update(header_value)

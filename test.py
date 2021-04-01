@@ -29,8 +29,8 @@ elif auth_type == "4":
 pprint(platonus_session.login(login=input_username,
        password=input_pswd, IIN=input_IIN))
 # platonus_session.load_session("session.pkl")
-pprint(platonus_session.person_fio())
-pprint(platonus_session.person_info())
+pprint(platonus_session.profile.profile_fio())
+pprint(platonus_session.profile.profile_info())
 pprint(platonus_session.server_time())
 pprint(platonus_session.rest_api_information())
 pprint(platonus_session.auth_type())

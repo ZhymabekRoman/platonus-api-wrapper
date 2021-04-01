@@ -11,7 +11,7 @@ class Methods:
     Вообще, кстати говоря, не понятно, почему в некоторых запросах для указывания языка используются коды языков (ru, en, ru) а в других - цифры (1, 2, 3), закономерность которых установлено Платонусом. 
 
     Args:
-        language_code - Сокращенные двухзначные названия стран (ru, kz, en), см: https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2 . К примеру: ru, kz, en
+        language_code - Сокращенные двухзначные названия стран, см: https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2 . К примеру: ru, kz, en
         rest_api_version - Принимает версию Платонуса.
     """
     def __init__(self, language_code, rest_api_version):
@@ -21,13 +21,15 @@ class Methods:
 
         self.login = "rest/api/login"
         self.logout = "rest/api/logout"
+
         self.auth_type = "rest/api/authType"
 
         self.person_fio = "rest/fio"
-        self.person_info = f'rest/mobile/personInfo/{self.language_code_str}'
+        self.person_id = "rest/api/person/personID"
+        self.profile_info = f'rest/mobile/personInfo/{self.language_code_str}'
         self.profile_picture = "rest/img/profilePicture"
-        self.person_type_list = f"rest/api/person/personTypeList/{self.language_code_str}"
 
+        self.person_type_list = f"rest/api/person/personTypeList/{self.language_code_str}"
         self.student_tasks = f'rest/assignments/studentTasks/-1/{self.language_code_int}'
         self.study_years_list = f'rest/mobile/student/studyYears/{self.language_code_str}'
         self.terms_list = f'rest/mobile/tutor/terms/{self.language_code_str}'
@@ -46,3 +48,6 @@ class Methods:
 
     def student_journal(self, year: int, term: int):
         return f"rest/api/journal/{year}/{term}/{self.language_code_str}"
+
+    def has_module(self, module_name):
+        return f"rest/api/person/hasModule/{module_name}"

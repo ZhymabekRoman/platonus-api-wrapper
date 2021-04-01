@@ -6,6 +6,9 @@ from ..utils import exceptions
 from ..utils.dict2object import dict2object
 from ..utils.base64 import base64_encode, base64_decode
 
+from .profile import Profile
+from .has_module import HasModule
+
 from ..utils.request import RequestSessionWrapper
 from ..utils.payload import generate_payload
 from ..utils.lru_cacher import timed_lru_cache
@@ -14,7 +17,6 @@ from ..utils.loginizer import login_required
 from ..validators import ValidateLoginCredentials
 from ..validators import URLValidator, URLNormalizer
 from ..validators import ValidateLanguage, LanguageCodeToInt
-
 
 import logging
 import pickle
@@ -133,6 +135,7 @@ class PlatonusBase:
             logger.warning("Object session is not initialized, ignoring ...")
             pass
 
+
 class PlatonusAPI(PlatonusBase):
     """
     Base Platonus API class
@@ -148,7 +151,7 @@ class PlatonusAPI(PlatonusBase):
             password: пароль
             IIN: ИИН
         Returns:
-            message: В случае если во время авторизации возникнет ошибка (неверный пароль) тогда выдаст сообщение об ошибке
+            message: В случае если во время авторизации возникнет ошибка (неверный логин/ИИН/пароль) тогда выдаст сообщение об ошибке
             login_status: success если авторизация успешна, invalid если были введены не верные авторизационные данные
             auth_token: авторизационный токен
             sid: не известно
@@ -201,50 +204,35 @@ class PlatonusAPI(PlatonusBase):
             return dict2object({"logout_status": "unknown"})
 
     @login_required
-    def profile_picture(self):
-        """Возвращает аватарку пользывателя"""
-        response = self.session.get(self.api.profile_picture, stream=True).content
-        return base64_decode(response)
+    def change_login_or_password(self, old_password, new_password, confirm_new_password, new_login=None):
+        if not new_login:
+            new_login = self._auth_credentials["login"]
 
+        if new_password != confirm_new_password:
+            raise exceptions.NotCorrectLoginCredentials("Новый пароль и его подтверждение не совпадают")
+        elif old_password != self._auth_credentials["password"]:
+            raise exceptions.NotCorrectLoginCredentials("Вы ввели не верный старый пароль")
+        elif old_password == new_password:
+            raise exceptions.NotCorrectLoginCredentials("Новый и старый пароль одинаковы, смысл тогда менять пароль ?!")
+        elif len(new_login) < 4 or len(new_password) < 4:
+            raise exceptions.NotCorrectLoginCredentials("Длина логина/пароля должна быть не менее 4 символов")
+
+        payload = {"login": new_login, "oldPassword": old_password, "password": new_password, "confPassword": confirm_new_password}
+        response = self.session.post("rest/api/changePassword", payload).json(object_hook=dict2object)
+
+        self._auth_credentials["login"] = new_login
+        self._auth_credentials["password"] = new_password
+
+        return response
+
+    @timed_lru_cache(86400)
     def person_type_list(self):
         """По идее должен возврящать список типов пользывателей Platonus, но почему-то ничего не возвращяет, нафиг его тогда  реализовали?!"""
         response = self.session.get(self.api.person_type_list).json(object_hook=dict2object)
         return response
 
     @login_required
-    @timed_lru_cache(86400)
-    def person_fio(self):
-        """Возвращает ФИО пользывателя"""
-        response = self.session.get(self.api.person_fio)
-        return response.text
-
-    @login_required
     @timed_lru_cache(60)
-    def person_info(self):
-        """
-        Возвращает информацию о текущем пользывателе
-        Returns:
-            lastName: Фамилия
-            firstName: Имя
-            patronymic: Отчество
-            personType: Тип пользывателя - 1: Обучающиеся
-                                           3: Преподаватель
-                                           38: Родитель
-            photoBase64: Фотография пользывателя в base64
-            passwordExpired: Истек ли пароль пользывателя (bool значение)
-            temporaryPassword: Стоит ли временный пароль (bool значение)
-            studentID: ID обучающегося
-            gpa: бог знает, скорее всего средняя оценка по всем урокам
-            courseNumber: курс ученика
-            groupName: название группы (потока)
-            professionName: название специальности
-            specializationName: название специализации
-            studyTechnology: тип обучаемой технологии = 2 - по оценкам (5/4/3/2) (но это не точно)
-        """
-        response = self.session.get(self.api.person_info).json(object_hook=dict2object)
-        return response
-
-    @login_required
     def student_tasks(self, countInPart, endDate, partNumber, recipientStatus, startDate, studyGroupID="-1", subjectID="-1", term="-1", topic="", tutorID="-1", year="-1"):
         """Возвращает все задания ученика"""
         payload = generate_payload(**locals())
@@ -267,12 +255,14 @@ class PlatonusAPI(PlatonusBase):
         return response
 
     @login_required
+    @timed_lru_cache(43200)
     def terms_list(self):
         """Возвращает список семестров"""
         response = self.session.get(self.api.terms_list).json(object_hook=dict2object)
         return response
 
     @login_required
+    @timed_lru_cache(43200)
     def student_journal(self, year: int, term: int):
         """
         Возвращает журнал ученика
@@ -284,6 +274,7 @@ class PlatonusAPI(PlatonusBase):
         return response
 
     @login_required
+    @timed_lru_cache(86400)
     def recipient_statuses_list(self):
         """Возвращает список всех возможных статусов задании"""
         response = self.session.get(self.api.recipient_statuses_list).json(object_hook=dict2object)
@@ -345,3 +336,11 @@ class PlatonusAPI(PlatonusBase):
         """
         response = self.session.get(self.api.auth_type).json(object_hook=dict2object)
         return response
+
+    @property
+    def profile(self):
+        return Profile(self)
+
+    @property
+    def has_module(self):
+        return HasModule(self)

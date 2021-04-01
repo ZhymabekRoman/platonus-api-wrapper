@@ -36,7 +36,7 @@ python3 -m pip install https://github.com/ZhymabekRoman/platonus_api_wrapper/arc
 
 Или же напрямую через setup.py:
 ```
-$ git clone https://github.com/ZhymabekRoman/platonus-api-wrapper --recursive
+$ git clone https://github.com/ZhymabekRoman/platonus_api_wrapper --recursive
 $ cd platonus-api-wrapper
 $ python3 setup.py install
 ```

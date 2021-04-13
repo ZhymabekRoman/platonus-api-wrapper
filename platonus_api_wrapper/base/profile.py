@@ -60,4 +60,3 @@ class Profile(object):
         """
         response = self.session.get(self.api.profile_info).json(object_hook=dict2object)
         return response
-

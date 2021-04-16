@@ -90,4 +90,4 @@ class RequestSessionWrapper:
         self.__session.close()
 
 
-__all__ = [RequestSessionWrapper]
+__all__ = ['RequestSessionWrapper']

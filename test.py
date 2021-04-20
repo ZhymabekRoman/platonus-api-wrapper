@@ -41,4 +41,5 @@ pprint(platonus_session.terms_list())
 pprint(platonus_session.person_type_list())
 pprint(platonus_session.student_tasks(countInPart="20", partNumber="0",
        recipientStatus="2", startDate="10-01-2021", endDate="23-02-2021"))
+pprint(platonus_session.has_unshown_release())
 platonus_session.logout()

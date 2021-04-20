@@ -336,6 +336,11 @@ class PlatonusAPI(PlatonusBase):
         response = self.session.get(self.api.auth_type).json(object_hook=dict2object)
         return response
 
+    @timed_lru_cache(3600)
+    def has_unshown_release(self):
+        response = self.session.get(self.api.has_unshown_release).json(object_hook=dict2object)
+        return response
+
     @property
     def profile(self):
         return Profile(self)

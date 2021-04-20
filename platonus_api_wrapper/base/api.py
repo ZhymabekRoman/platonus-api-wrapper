@@ -51,3 +51,7 @@ class Methods:
 
     def has_module(self, module_name):
         return f"rest/api/person/hasModule/{module_name}"
+
+    @property
+    def has_unshown_release(self):
+        return f"rest/releases/hasUnshownRelease?language={self.language_code_str}"

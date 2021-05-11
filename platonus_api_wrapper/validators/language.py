@@ -1,10 +1,10 @@
 from ..utils import exceptions
 
 
-def ValidateLanguage(language_code):
+def ValidateLanguage(language_code: str):
     """Проверяет код языка, поддерживается ли он Платонусом
     Args:
-        language_code (str): код страны (языка) в стандарте ISO 3166-1 alpha-2, подробнее: https://ru.wikipedia.org/wiki/ISO_3166-1_alpha-2 . К примеру: ru, en, kz
+        language_code (str): код языка в стандарте ISO 639-1, подробнее: https://ru.wikipedia.org/wiki/ISO_639-1 . К примеру: ru, en, kz
     Raises:
         UnsupportedLanguageCode: Если код языка не корректен или язык не поддерживается Платонусом
     Returns:
@@ -18,10 +18,10 @@ def ValidateLanguage(language_code):
     return True
 
 
-def LanguageCodeToInt(language_code):
+def LanguageCodeToInt(language_code: str):
     """Переводит код языка в цифры, которые понятны только Платонусу
     Args:
-        language_code (str): код страны (языка) в стандарте ISO 3166-1 alpha-2, подробнее: https://ru.wikipedia.org/wiki/ISO_3166-1_alpha-2 . К примеру: ru, en, kz
+        language_code (str): код языка в стандарте ISO 639-1, подробнее: https://ru.wikipedia.org/wiki/ISO_639-1 . К примеру: ru, en, kz
     Raises:
         UnsupportedLanguageCode: Если код языка не корректен или язык не поддерживается Платонусом
     Returns:

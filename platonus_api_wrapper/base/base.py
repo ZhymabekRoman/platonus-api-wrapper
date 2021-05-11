@@ -21,8 +21,6 @@ from ..validators import ValidateLanguage, LanguageCodeToInt
 import logging
 import pickle
 
-from icecream import ic
-from pprint import pprint
 
 """
 Platonus_API_Wrapper
@@ -339,6 +337,18 @@ class PlatonusAPI(PlatonusBase):
     @timed_lru_cache(3600)
     def has_unshown_release(self):
         response = self.session.get(self.api.has_unshown_release).json(object_hook=dict2object)
+        return response
+
+    @login_required
+    @timed_lru_cache(60)
+    def survey_notifications(self):
+        response = self.session.get(self.api.survey_notifications).json(object_hook=dict2object)
+        return response
+
+    @login_required
+    @timed_lru_cache(60)
+    def notifications(self):
+        response = self.session.get(self.api.notifications).json(object_hook=dict2object)
         return response
 
     @property

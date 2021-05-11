@@ -8,10 +8,10 @@ class Methods:
     Во первых, в разных версиях Платонуса некоторые адреса REST API менялись, и соотвественно нужно учитовать во время отправки запросов
     Во вторых, во время отправки запросов отправляется язык, в котором должен быть запрос/ответ в/от Платонус.
 
-    Вообще, кстати говоря, не понятно, почему в некоторых запросах для указывания языка используются коды языков (ru, en, ru) а в других - цифры (1, 2, 3), закономерность которых установлено Платонусом. 
+    Вообще, кстати говоря, не понятно, почему в некоторых запросах для указывания языка используются коды языков (ru, en, ru) а в других - цифры (1, 2, 3), закономерность которых установлено Платонусом.
 
     Args:
-        language_code - Сокращенные двухзначные названия стран, см: https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2 . К примеру: ru, kz, en
+        language_code - название языка в стандарте ISO 639-1, к примеру: ru, kz, en
         rest_api_version - Принимает версию Платонуса.
     """
     def __init__(self, language_code, rest_api_version):
@@ -28,6 +28,9 @@ class Methods:
         self.person_id = "rest/api/person/personID"
         self.profile_info = f'rest/mobile/personInfo/{self.language_code_str}'
         self.profile_picture = "rest/img/profilePicture"
+
+        self.notifications = f"rest/systemMessages/false/{self.language_code_str}"
+        self.survey_notifications = f"rest/systemMessages/notification/{self.language_code_str}"
 
         self.person_type_list = f"rest/api/person/personTypeList/{self.language_code_str}"
         self.student_tasks = f'rest/assignments/studentTasks/-1/{self.language_code_int}'

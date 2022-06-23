@@ -13,7 +13,7 @@ def login_required(method):
         if not self.user_is_authed:
             raise exceptions.NotCorrectLoginCredentials(f"Метод '{method.__name__}' требует авторизацию, но вы не авторизовались в Платонус. Пожалуйста выполните метод login, и укажите авторизационные данные")
 
-        if not self.auto_relogin_after_session_expires:
+        if not self.auto_relogin:
             return method(self, *args, **kwargs)
 
         try:

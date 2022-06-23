@@ -12,33 +12,33 @@ class HasModule:
     @login_required
     @timed_lru_cache(86400)
     def profile(self):
-        response = self.session.get(self.api.has_module("student")).json(object_hook=dict2object)
+        response = self.session.get(self.api.has_module("student")).as_object()
         return response
 
     @inheritance_from_base_cls
     @login_required
     @timed_lru_cache(86400)
     def journal(self):
-        response = self.session.get(self.api.has_module("studentregister")).json(object_hook=dict2object)
+        response = self.session.get(self.api.has_module("studentregister")).as_object()
         return response
 
     @inheritance_from_base_cls
     @login_required
     @timed_lru_cache(86400)
     def current_journal(self):
-        response = self.session.get(self.api.has_module("current_progress_gradebook_student")).json(object_hook=dict2object)
+        response = self.session.get(self.api.has_module("current_progress_gradebook_student")).as_object()
         return response
 
     @inheritance_from_base_cls
     @login_required
     @timed_lru_cache(86400)
     def assignment(self):
-        response = self.session.get(self.api.has_module("assignment")).json(object_hook=dict2object)
+        response = self.session.get(self.api.has_module("assignment")).as_object()
         return response
 
     @inheritance_from_base_cls
     @login_required
     @timed_lru_cache(86400)
     def study_room(self):
-        response = self.session.get(self.api.has_module("studyroom")).json(object_hook=dict2object)
+        response = self.session.get(self.api.has_module("studyroom")).as_object()
         return response

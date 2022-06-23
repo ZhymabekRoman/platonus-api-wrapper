@@ -4,12 +4,12 @@
 from . import api
 from ..utils import exceptions
 from ..utils.dict2object import dict2object
-from ..utils.base64 import base64_encode, base64_decode
+from ..utils.base64 import base64_decode
 
 from .profile import Profile
 from .has_module import HasModule
 
-from ..utils.request import RequestSessionWrapper
+from ..utils.request import Request
 from ..utils.payload import generate_payload
 from ..utils.lru_cacher import timed_lru_cache
 from ..utils.loginizer import login_required
@@ -46,7 +46,7 @@ class PlatonusBase:
                     Более подробнее читайте здесь: https://medium.com/javascript-essentials/what-is-context-path-d442b3de164b
         auto_relogin_after_session_expires: автоматическая реавторизация после истекании срока сессии
     """
-    def __init__(self, base_url: str, language: str = "ru", context_path: str = "/", auto_relogin_after_session_expires=True):
+    def __init__(self, base_url: str, language: str = "ru", context_path: str = "/", auto_relogin: bool = True):
         # Проверка URL адреса на валидность
         URLValidator(base_url)
 
@@ -57,7 +57,7 @@ class PlatonusBase:
         platonus_url = URLNormalizer(base_url, context_path)
 
         # Инициализируем сессию
-        self.session = RequestSessionWrapper(platonus_url)
+        self.session = Request(platonus_url)
 
         # Инициализируем язык Платонуса в хэйдер запросов
         self.session.request_header = {'language': LanguageCodeToInt(language)}
@@ -71,8 +71,8 @@ class PlatonusBase:
         # Инициализируем менеджер REST API методов
         self.api = api.Methods(language, self.rest_api_version)
 
-        # Инициализируем значение автоматиеского релогина после истекании сесии
-        self.auto_relogin_after_session_expires = auto_relogin_after_session_expires
+        # Инициализируем значение автоматиеского релогина после истечений действий сессии
+        self.auto_relogin = auto_relogin
 
     def import_session(self, session_file):
         """
@@ -119,7 +119,6 @@ class PlatonusBase:
     @property
     def user_is_authed(self):
         """Checks whether credentials were passed."""
-
         return True if self._auth_credentials else False
 
     def __del__(self):
@@ -162,12 +161,12 @@ class PlatonusAPI(PlatonusBase):
 
         ValidateLoginCredentials(dict2object(payload), self._auth_type_value)
 
-        response = self.session.post(self.api.login, payload).json(object_hook=dict2object)
+        response = self.session.post(self.api.login, payload).as_object()
 
         if response.login_status == "invalid":
             raise exceptions.NotCorrectLoginCredentials(response.message)
 
-        self.session.request_header = {'token': response.auth_token}
+        self.session.header = {'token': response.auth_token}
         self._auth_credentials = payload
 
         return response
@@ -190,7 +189,7 @@ class PlatonusAPI(PlatonusBase):
         # Очищаем хранилище авторизационных данных, тем самым указывая что пользыватель не авторизован
         self._auth_credentials = {}
         # И заодно токен тоже удаляем из хейдера запросов
-        self.session.request_header = {'token': None}
+        self.session.header = {'token': None}
         # Очищаем хранилище кэша от закэшированных запросов
         del self._cached_functions_list
 
@@ -201,7 +200,7 @@ class PlatonusAPI(PlatonusBase):
             return dict2object({"logout_status": "unknown"})
 
     @login_required
-    def change_login_or_password(self, old_password, new_password, confirm_new_password, new_login=None):
+    def change_login_or_password(self, old_password: str, new_password: str, confirm_new_password: str, new_login: str = None):
         if not new_login:
             new_login = self._auth_credentials["login"]
 
@@ -215,7 +214,7 @@ class PlatonusAPI(PlatonusBase):
             raise exceptions.NotCorrectLoginCredentials("Длина логина/пароля должна быть не менее 4 символов")
 
         payload = {"login": new_login, "oldPassword": old_password, "password": new_password, "confPassword": confirm_new_password}
-        response = self.session.post("rest/api/changePassword", payload).json(object_hook=dict2object)
+        response = self.session.post("rest/api/changePassword", payload).as_object()
 
         self._auth_credentials["login"] = new_login
         self._auth_credentials["password"] = new_password
@@ -225,7 +224,7 @@ class PlatonusAPI(PlatonusBase):
     @timed_lru_cache(86400)
     def person_type_list(self):
         """По идее должен возврящать список типов пользывателей Platonus, но почему-то ничего не возвращяет, нафиг его тогда  реализовали?!"""
-        response = self.session.get(self.api.person_type_list).json(object_hook=dict2object)
+        response = self.session.get(self.api.person_type_list).as_object()
         return response
 
     @login_required
@@ -233,29 +232,29 @@ class PlatonusAPI(PlatonusBase):
     def student_tasks(self, countInPart, endDate, partNumber, recipientStatus, startDate, studyGroupID="-1", subjectID="-1", term="-1", topic="", tutorID="-1", year="-1"):
         """Возвращает все задания ученика"""
         payload = generate_payload(**locals())
-        response = self.session.post(self.api.student_tasks, payload).json(object_hook=dict2object)
+        response = self.session.post(self.api.student_tasks, payload).as_object()
         return response
 
     @login_required
     def recipient_task_info(self, recipient_task_id):
-        response = self.session.get(self.api.recipient_task_info(recipient_task_id)).json(object_hook=dict2object)
+        response = self.session.get(self.api.recipient_task_info(recipient_task_id)).as_object()
         return response
 
     @login_required
     def study_years_list(self):
-        response = self.session.get(self.api.study_years_list).json(object_hook=dict2object)
+        response = self.session.get(self.api.study_years_list).as_object()
         return response
 
     @login_required
     def get_marks_by_date(self):
-        response = self.session.get(self.api.get_marks_by_date).json(object_hook=dict2object)
+        response = self.session.get(self.api.get_marks_by_date).as_object()
         return response
 
     @login_required
     @timed_lru_cache(43200)
     def terms_list(self):
         """Возвращает список семестров"""
-        response = self.session.get(self.api.terms_list).json(object_hook=dict2object)
+        response = self.session.get(self.api.terms_list).as_object()
         return response
 
     @login_required
@@ -267,14 +266,14 @@ class PlatonusAPI(PlatonusBase):
             year - год
             term - семестр
         """
-        response = self.session.get(self.api.student_journal(year, term)).json(object_hook=dict2object)
+        response = self.session.get(self.api.student_journal(year, term)).as_object()
         return response
 
     @login_required
     @timed_lru_cache(86400)
     def recipient_statuses_list(self):
         """Возвращает список всех возможных статусов задании"""
-        response = self.session.get(self.api.recipient_statuses_list).json(object_hook=dict2object)
+        response = self.session.get(self.api.recipient_statuses_list).as_object()
         return response
 
     def platonus_icon(self, icon_size: str = "small"):
@@ -301,7 +300,7 @@ class PlatonusAPI(PlatonusBase):
             date: дата
             dayOfWeek: день недели
         """
-        response = self.session.get(self.api.server_time).json(object_hook=dict2object)
+        response = self.session.get(self.api.server_time).as_object()
         return response
 
     @timed_lru_cache(600)
@@ -318,7 +317,7 @@ class PlatonusAPI(PlatonusBase):
             licenceType (appType): тип лицензии / для кого предназначен - college: колледж
                                                                           university: университет
         """
-        response = self.session.get('rest/api/version').json(object_hook=dict2object)
+        response = self.session.get('rest/api/version').as_object()
         return response
 
     @timed_lru_cache(3600)
@@ -331,24 +330,24 @@ class PlatonusAPI(PlatonusBase):
                     3 - ИИН и пароль
                     4 - ничего (?)
         """
-        response = self.session.get(self.api.auth_type).json(object_hook=dict2object)
+        response = self.session.get(self.api.auth_type).as_object()
         return response
 
     @timed_lru_cache(3600)
     def has_unshown_release(self):
-        response = self.session.get(self.api.has_unshown_release).json(object_hook=dict2object)
+        response = self.session.get(self.api.has_unshown_release).as_object()
         return response
 
     @login_required
     @timed_lru_cache(60)
     def survey_notifications(self):
-        response = self.session.get(self.api.survey_notifications).json(object_hook=dict2object)
+        response = self.session.get(self.api.survey_notifications).as_object()
         return response
 
     @login_required
     @timed_lru_cache(60)
     def notifications(self):
-        response = self.session.get(self.api.notifications).json(object_hook=dict2object)
+        response = self.session.get(self.api.notifications).as_object()
         return response
 
     @property

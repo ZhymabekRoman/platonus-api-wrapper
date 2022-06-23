@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 logger = logging.getLogger('platonus_api_wrapper')
 
 
+# Another name of this cache mechanic: TLRU
 def timed_lru_cache(seconds: int, maxsize: int = 128):
     def wrapper_cache(func):
         func = lru_cache(maxsize)(func)

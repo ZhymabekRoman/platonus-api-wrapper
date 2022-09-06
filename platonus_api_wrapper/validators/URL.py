@@ -2,6 +2,7 @@ import re
 from urllib.parse import urlsplit, urlparse
 from ..utils import exceptions
 
+
 def URLValidator(url):
     """Проверяет, правильный/корректный ли URL адресс
     Args:

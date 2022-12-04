@@ -1,4 +1,4 @@
-# Platonus API Wrapper - неофициальная Python библиотека для работы с Платонусом (maintenance mode / режим технического обслуживания)
+# Platonus API Wrapper - неофициальная Python библиотека для работы с Платонусом (maintenance mode)
 [![Maintainability](https://api.codeclimate.com/v1/badges/7a4695ad3d671c96f922/maintainability)](https://codeclimate.com/github/ZhymabekRoman/platonus_api_wrapper/maintainability)
 [![Requirements Status](https://requires.io/github/ZhymabekRoman/platonus_api_wrapper/requirements.svg?branch=main)](https://requires.io/github/ZhymabekRoman/platonus_api_wrapper/requirements/?branch=main)
 

@@ -1,6 +1,4 @@
-# Platonus API Wrapper - неофициальная Python библиотека для работы с Платонусом (maintenance mode)
-[![Maintainability](https://api.codeclimate.com/v1/badges/7a4695ad3d671c96f922/maintainability)](https://codeclimate.com/github/ZhymabekRoman/platonus_api_wrapper/maintainability)
-
+# Platonus API Wrapper - неофициальная Python библиотека для работы с Платонусом
 Делаю то, что по определённым причинам не сделали разработчики Платонуса.
 
 ## ВНИМАНИЕ!
@@ -18,16 +16,9 @@
 * Еще одна проблема - Платонус имеет очень много версии: начиная от ~2.00 до ~5.70, и предусмотреть все изменении не возможно, это усложняется тем что нету документации. Например адресс REST API метода `menuTimeDate`, который возвращает серверное время Платонуса, менялся в разных версиях Платонуса, пока точно не известно, в каких конкретных версиях
 
 ## Установка
-В данное время Вы можете установить библиотеку из исходного кода с помощью pip3:
-```
-python3 -m pip install https://github.com/ZhymabekRoman/platonus_api_wrapper/archive/main.zip
-```
-
-Или же напрямую через setup.py:
-```
-$ git clone https://github.com/ZhymabekRoman/platonus_api_wrapper --recursive
-$ cd platonus-api-wrapper
-$ python3 setup.py install
+В данное время Вы можете установить библиотеку из исходного кода с помощью pip:
+```bash
+$ pip3 install git+https://github.com/ZhymabekRoman/platonus_api_wrapper
 ```
 
 ## Начало работы

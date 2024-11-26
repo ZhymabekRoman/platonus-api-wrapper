@@ -1,18 +1,23 @@
-import logging
-import requests
 import json
+import logging
+
+import requests
 from requests.adapters import HTTPAdapter
 
-from . import exceptions
 from ..utils.dict2object import dict2object
+from . import exceptions
 
-logging.getLogger('urllib3').setLevel(logging.WARNING)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 logger = logging.getLogger("platonus_api_wrapper")
 
-HEADER = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4240.198 Safari/537.36 OPR/72.0.3815.459', 'Content-Type': 'application/json; charset=UTF-8'}
+HEADER = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4240.198 Safari/537.36 OPR/72.0.3815.459",
+    "Content-Type": "application/json; charset=UTF-8",
+}
 
-class Response():
+
+class Response:
     def __init__(self, request_obj: requests.Response) -> None:
         #: Integer Code of responded HTTP Status, e.g. 404 or 200.
         self.status_code = request_obj.status_code
@@ -76,7 +81,10 @@ class Response():
     def raise_for_status(self):
         """Raise an exception if the status code of the response is less than 400"""
         if self.status_code >= 400:
-            raise RequestStatusError(self.status_code, "Request Status Code: {code}".format(code=str(self.status_code)))
+            raise RequestStatusError(
+                self.status_code,
+                "Request Status Code: {code}".format(code=str(self.status_code)),
+            )
 
     def json(self, **kwargs):
         return json.loads(self.text, **kwargs)
@@ -95,13 +103,23 @@ class Request:
         request_retries: количество попыток после неудачного соединения
         ssl_verify: позволяет верифицировать SSL-сертификаты
     """
-    def __init__(self, base_url: str, proxy_dict: dict = {}, timeout: float = 10.0, max_retries: int = 3, ssl_verify: bool = False):
+
+    def __init__(
+        self,
+        base_url: str,
+        proxy_dict: dict = {},
+        timeout: float = 10.0,
+        max_retries: int = 3,
+        ssl_verify: bool = False,
+    ):
         self.base_url = base_url
         self.proxies = proxy_dict
         self.timeout = timeout
         self.verify = ssl_verify
 
-        adapter = HTTPAdapter(pool_connections=100, pool_maxsize=100, max_retries=max_retries)
+        adapter = HTTPAdapter(
+            pool_connections=100, pool_maxsize=100, max_retries=max_retries
+        )
 
         self.session = requests.Session()
         self.session.headers.update(HEADER)
@@ -109,36 +127,54 @@ class Request:
 
     def request(self, method, url, data, *args, **kwargs) -> Response:
         try:
-            response = self.session.request(method, url=f"{self.base_url}{url}", json=data, timeout=self.timeout, proxies=self.proxies, verify=self.verify, *args, **kwargs)
-            response.encoding = 'utf-8'
+            response = self.session.request(
+                method,
+                url=f"{self.base_url}{url}",
+                json=data,
+                timeout=self.timeout,
+                proxies=self.proxies,
+                verify=self.verify,
+                *args,
+                **kwargs,
+            )
+            response.encoding = "utf-8"
         except requests.Timeout:
             raise exceptions.TimedOut()
         except (requests.RequestException, requests.exceptions.ConnectionError) as e:
             raise exceptions.NetworkError(e)
         else:
-            logger.debug(f"URL: {self.base_url}{url}, status code: {response.status_code}, {method} request")
+            logger.debug(
+                f"URL: {self.base_url}{url}, status code: {response.status_code}, {method} request"
+            )
 
             self.raise_by_status_code(response.status_code)
 
             return Response(response)
 
     def raise_by_status_code(self, status_code):
+        # Ported from Android
         if status_code == 401:
-            raise exceptions.LoginSessionExpired("Сессия истекла, возобновите сессию с помощью метода login")
+            raise exceptions.LoginSessionExpired(
+                "Сессия истекла, возобновите сессию с помощью метода login"
+            )
         elif status_code == 404:
-            raise exceptions.ServerError(f"Серверная ошибка, попробуйте чуть позже, код ошибки: {status_code}")
+            raise exceptions.ServerError(
+                f"Серверная ошибка, попробуйте чуть позже, код ошибки: {status_code}"
+            )
         elif status_code >= 402:
             if status_code <= 500:
-                raise exceptions.ServerError(f"Серверная ошибка, попробуйте чуть позже, код ошибки: {status_code}")
+                raise exceptions.ServerError(
+                    f"Серверная ошибка, попробуйте чуть позже, код ошибки: {status_code}"
+                )
 
     def post(self, url, data=None, *args, **kwargs) -> Response:
         logger.debug(f"URL: {url}, POST request")
-        response = self.request('POST', url, data, *args, **kwargs)
+        response = self.request("POST", url, data, *args, **kwargs)
         return response
 
     def get(self, url, data=None, *args, **kwargs) -> Response:
         logger.debug(f"URL: {url}, GET request")
-        response = self.request('GET', url, data, *args, **kwargs)
+        response = self.request("GET", url, data, *args, **kwargs)
         return response
 
     @property
@@ -157,4 +193,4 @@ class Request:
         self.session.close()
 
 
-__all__ = ['Request']
+__all__ = ["Request"]

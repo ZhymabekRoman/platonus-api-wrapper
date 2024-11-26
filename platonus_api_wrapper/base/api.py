@@ -1,7 +1,10 @@
-from ..validators import LanguageCodeToInt
+from typing import Literal
+
+from ..const import LanguageCode
+from ..validators import language_code_to_int
 
 
-class Methods:
+class ApiMethods:
     """Менеджер REST API методов Платонуса
 
     Менеджер нужен:
@@ -14,9 +17,10 @@ class Methods:
         language_code - название языка в стандарте ISO 639-1, к примеру: ru, kz, en
         rest_api_version - Принимает версию Платонуса.
     """
-    def __init__(self, language_code, rest_api_version):
+
+    def __init__(self, language_code: LanguageCode, rest_api_version: float):
         self.language_code_str = language_code
-        self.language_code_int = LanguageCodeToInt(language_code)
+        self.language_code_int = language_code_to_int(language_code)
         self.rest_api_version = rest_api_version
 
         self.login = "rest/api/login"
@@ -24,20 +28,25 @@ class Methods:
 
         self.auth_type = "rest/api/authType"
 
-        self.person_fio = "rest/fio"
-        self.person_id = "rest/api/person/personID"
-        self.profile_info = f'rest/mobile/personInfo/{self.language_code_str}'
-        self.profile_picture = "rest/img/profilePicture"
+        self.student_tasks = (
+            f"rest/assignments/studentTasks/-1/{self.language_code_int}"
+        )
+        self.study_years_list = (
+            f"rest/mobile/student/studyYears/{self.language_code_str}"
+        )
+        self.terms_list = f"rest/mobile/tutor/terms/{self.language_code_str}"
+        self.get_marks_by_date = f"assignments/assignedYears/{self.language_code_str}"
+        self.recipient_statuses_list = (
+            f"rest/assignments/recipientStatuses/{self.language_code_int}"
+        )
 
-        self.notifications = f"rest/systemMessages/false/{self.language_code_str}"
-        self.survey_notifications = f"rest/systemMessages/notification/{self.language_code_str}"
+        self.applicant_reg_degrees = (
+            f"rest/api/applicant_reg_degrees?lang={self.language_code_int}"
+        )
 
-        self.person_type_list = f"rest/api/person/personTypeList/{self.language_code_str}"
-        self.student_tasks = f'rest/assignments/studentTasks/-1/{self.language_code_int}'
-        self.study_years_list = f'rest/mobile/student/studyYears/{self.language_code_str}'
-        self.terms_list = f'rest/mobile/tutor/terms/{self.language_code_str}'
-        self.get_marks_by_date = f'assignments/assignedYears/{self.language_code_str}'
-        self.recipient_statuses_list = f'rest/assignments/recipientStatuses/{self.language_code_int}'
+        self.citizenship_list = (
+            f"rest/api/citizenship_list?lang={self.language_code_int}"
+        )
 
     @property
     def server_time(self):
@@ -49,12 +58,11 @@ class Methods:
     def recipient_task_info(self, recipient_task_id):
         return f"rest/assignments/tutor/assignment/loadRecipientTaskInfo/{self.language_code_int}?assignmentRecipientID={recipient_task_id}"
 
-    def student_journal(self, year: int, term: int):
-        return f"rest/api/journal/{year}/{term}/{self.language_code_str}"
-
-    def has_module(self, module_name):
+    def has_module(self, module_name: str):
         return f"rest/api/person/hasModule/{module_name}"
 
-    @property
-    def has_unshown_release(self):
-        return f"rest/releases/hasUnshownRelease?language={self.language_code_str}"
+    def has_module_license(self, module_name: str):
+        return f"rest/moduleLicense/by_module/{module_name}"
+
+    def university_application_types(self, degree_id: int | Literal[""] = ""):
+        return f"rest/api/university_application_types?lang={self.language_code_int}&degreeID={degree_id}"

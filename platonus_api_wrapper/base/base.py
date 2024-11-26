@@ -1,26 +1,29 @@
 #! /usr/bin/env python3
 # encoding: utf-8
 
-from . import api
-from ..utils import exceptions
-from ..utils.dict2object import dict2object
-from ..utils.base64 import base64_decode
-
-from .profile import Profile
-from .has_module import HasModule
-
-from ..utils.request import Request
-from ..utils.payload import generate_payload
-from ..utils.lru_cacher import timed_lru_cache
-from ..utils.loginizer import login_required
-
-from ..validators import ValidateLoginCredentials
-from ..validators import URLValidator, URLNormalizer
-from ..validators import ValidateLanguage, LanguageCodeToInt
-
 import logging
 import pickle
+from typing import Any, Literal, Optional
 
+from ..const import LanguageCode
+from ..utils import exceptions
+from ..utils.dict2object import dict2object
+from ..utils.loginizer import login_required
+from ..utils.lru_cacher import timed_lru_cache
+from ..utils.memory_cacher import MemoryCacherMixin
+from ..utils.payload import generate_payload
+from ..utils.request import Request
+from ..validators import (
+    URLNormalizer,
+    URLValidator,
+    language_code_to_int,
+    validate_language,
+    validate_login_credentials,
+)
+from .api import ApiMethods
+from .has_module import HasModule
+from .has_module_license import HasModuleLicense
+from .profile import Profile
 
 """
 Platonus_API_Wrapper
@@ -29,10 +32,10 @@ This library provides a very thin wrapper around the
 Platonus REST API.
 """
 
-logger = logging.getLogger('platonus_api_wrapper')
+logger = logging.getLogger("platonus_api_wrapper")
 
 
-class PlatonusBase:
+class PlatonusBase(MemoryCacherMixin):
     """
     Base class for Platonus API.
 
@@ -46,12 +49,21 @@ class PlatonusBase:
                     Более подробнее читайте здесь: https://medium.com/javascript-essentials/what-is-context-path-d442b3de164b
         auto_relogin_after_session_expires: автоматическая реавторизация после истекании срока сессии
     """
-    def __init__(self, base_url: str, language: str = "ru", context_path: str = "/", auto_relogin: bool = True):
+
+    def __init__(
+        self,
+        base_url: str,
+        language: LanguageCode,
+        context_path: str = "/",
+        auto_relogin: bool = True,
+    ):
+        super().__init__()
+
         # Проверка URL адреса на валидность
         URLValidator(base_url)
 
         # Проверка выставленного языка на валидность
-        ValidateLanguage(language)
+        validate_language(language)
 
         # Нормализуем адресс Платонуса. Для чего нужна нормализация URL адресса см. файл validators/URL.py
         platonus_url = URLNormalizer(base_url, context_path)
@@ -60,16 +72,13 @@ class PlatonusBase:
         self.session = Request(platonus_url)
 
         # Инициализируем язык Платонуса в хэйдер запросов
-        self.session.request_header = {'language': LanguageCodeToInt(language)}
+        self.session.request_header = {"language": language_code_to_int(language)}
 
         # Инициализируем хранилище значении авторизационных данных, чтобы можно было автоматическии переавторизоватся в случае истекании сессиии
         self._auth_credentials = {}
 
-        # Инициализируем хранилище закэшированных функции. Это нужно для того чтобы во время выхода из аккаунта (или сесии, logout короче) очистить все закэшированные значения, мало ли.
-        self.__memory_cacher = []
-
         # Инициализируем менеджер REST API методов
-        self.api = api.Methods(language, self.rest_api_version)
+        self.api = ApiMethods(language, self.rest_api_version)
 
         # Инициализируем значение автоматиеского релогина после истечений действий сессии
         self.auto_relogin = auto_relogin
@@ -79,33 +88,31 @@ class PlatonusBase:
         Импортирует сессию Платонуса из файла. Это позваляет каждый раз не логинится,
         достаточно залогинится, экспортировать сессию через export_session и в нужый момент зайти в сессию через import_session.
         """
-        with open(session_file, 'rb') as f:
-            self.session.request_session, self._auth_credentials = pickle.load(f)
+        with open(session_file, "rb") as f:
+            self.session_data = pickle.load(f)
 
     def export_session(self, session_file):
         """
         Экспортирует сессию Платонуса в файл. Это позваляет каждый раз не логинится,
         достаточно залогинится, экспортировать сессию через export_session и в нужый момент зайти в сессию через import_session.
         """
-        with open(session_file, 'wb') as f:
-            pickle.dump((self.session.request_session, self._auth_credentials), f)
+        with open(session_file, "wb") as f:
+            pickle.dump(self.session_data, f)
 
     @property
-    def _cached_functions_list(self):
-        return self.__memory_cacher
+    def session_data(self) -> dict[Literal["session", "auth_credentials"], Any]:
+        return {
+            "session": self.session.request_session,
+            "auth_credentials": self._auth_credentials,
+        }
 
-    @_cached_functions_list.setter
-    def _cached_functions_list(self, value):
-        for list_value in self.__memory_cacher:
-            if list_value == value:
-                return
-        self.__memory_cacher.append(value)
+    @session_data.setter
+    def session_data(self, value: dict[Literal["session", "auth_credentials"], Any]):
+        if "session" not in value or "auth_credentials" not in value:
+            raise ValueError("Invalid session data")
 
-    @_cached_functions_list.deleter
-    def _cached_functions_list(self):
-        for func in self.__memory_cacher:
-            func.cache_clear()
-        self.__memory_cacher = []
+        self.session.request_session = value["session"]
+        self._auth_credentials = value["auth_credentials"]
 
     @property
     def _auth_type_value(self):
@@ -114,7 +121,12 @@ class PlatonusBase:
     @property
     def rest_api_version(self):
         rest_info = self.rest_api_information()
-        return dict2object({"version": float(rest_info.VERSION), "build_number": int(rest_info.BUILD_NUMBER)})
+        return dict2object(
+            {
+                "version": float(rest_info.VERSION),
+                "build_number": int(rest_info.BUILD_NUMBER),
+            }
+        )
 
     @property
     def user_is_authed(self):
@@ -139,13 +151,23 @@ class PlatonusAPI(PlatonusBase):
     Главный класс для работы с Платонусом. Взаимодействие происходит на уровне REST API.
     Информации о REST API были получены путем обратной разработки веб приложении и Android клиента, так как в свободном доступе нету ни исходников Платонуса, ни документации (комерческая тайна).
     """
-    def login(self, login: str = None, password: str = None, IIN: str = None):
+
+    def login(
+        self,
+        login: Optional[str] = None,
+        password: Optional[str] = None,
+        IIN: Optional[str] = None,
+        icNumber: Optional[str] = None,
+        authForDeductedStudentsAndGraduates: bool = False,
+    ):
         """
         Авторизация в Платонус
         Args:
             username: логин
             password: пароль
             IIN: ИИН
+            icNumber: ...
+            authForDeductedStudentsAndGraduates: ...
         Returns:
             message: В случае если во время авторизации возникнет ошибка (неверный логин/ИИН/пароль) тогда выдаст сообщение об ошибке
             login_status: success если авторизация успешна, invalid если были введены не верные авторизационные данные
@@ -159,14 +181,14 @@ class PlatonusAPI(PlatonusBase):
         """
         payload = generate_payload(**locals())
 
-        ValidateLoginCredentials(dict2object(payload), self._auth_type_value)
+        validate_login_credentials(dict2object(payload), self._auth_type_value)
 
         response = self.session.post(self.api.login, payload).as_object()
 
         if response.login_status == "invalid":
             raise exceptions.NotCorrectLoginCredentials(response.message)
 
-        self.session.header = {'token': response.auth_token}
+        self.session.header = {"token": response.auth_token}
         self._auth_credentials = payload
 
         return response
@@ -189,7 +211,7 @@ class PlatonusAPI(PlatonusBase):
         # Очищаем хранилище авторизационных данных, тем самым указывая что пользыватель не авторизован
         self._auth_credentials = {}
         # И заодно токен тоже удаляем из хейдера запросов
-        self.session.header = {'token': None}
+        self.session.header = {"token": None}
         # Очищаем хранилище кэша от закэшированных запросов
         del self._cached_functions_list
 
@@ -200,20 +222,39 @@ class PlatonusAPI(PlatonusBase):
             return dict2object({"logout_status": "unknown"})
 
     @login_required
-    def change_login_or_password(self, old_password: str, new_password: str, confirm_new_password: str, new_login: str = None):
+    def change_login_or_password(
+        self,
+        old_password: str,
+        new_password: str,
+        confirm_new_password: str,
+        new_login: str = None,
+    ):
         if not new_login:
             new_login = self._auth_credentials["login"]
 
         if new_password != confirm_new_password:
-            raise exceptions.NotCorrectLoginCredentials("Новый пароль и его подтверждение не совпадают")
+            raise exceptions.NotCorrectLoginCredentials(
+                "Новый пароль и его подтверждение не совпадают"
+            )
         elif old_password != self._auth_credentials["password"]:
-            raise exceptions.NotCorrectLoginCredentials("Вы ввели не верный старый пароль")
+            raise exceptions.NotCorrectLoginCredentials(
+                "Вы ввели не верный старый пароль"
+            )
         elif old_password == new_password:
-            raise exceptions.NotCorrectLoginCredentials("Новый и старый пароль одинаковы, смысл тогда менять пароль ?!")
+            raise exceptions.NotCorrectLoginCredentials(
+                "Новый и старый пароль одинаковы, смысл тогда менять пароль ?!"
+            )
         elif len(new_login) < 4 or len(new_password) < 4:
-            raise exceptions.NotCorrectLoginCredentials("Длина логина/пароля должна быть не менее 4 символов")
+            raise exceptions.NotCorrectLoginCredentials(
+                "Длина логина/пароля должна быть не менее 4 символов"
+            )
 
-        payload = {"login": new_login, "oldPassword": old_password, "password": new_password, "confPassword": confirm_new_password}
+        payload = {
+            "login": new_login,
+            "oldPassword": old_password,
+            "password": new_password,
+            "confPassword": confirm_new_password,
+        }
         response = self.session.post("rest/api/changePassword", payload).as_object()
 
         self._auth_credentials["login"] = new_login
@@ -221,15 +262,106 @@ class PlatonusAPI(PlatonusBase):
 
         return response
 
+    @login_required
     @timed_lru_cache(86400)
-    def person_type_list(self):
-        """По идее должен возврящать список типов пользывателей Platonus, но почему-то ничего не возвращяет, нафиг его тогда  реализовали?!"""
-        response = self.session.get(self.api.person_type_list).as_object()
+    def applicant_reg_degrees(self):
+        """Возвращает список степеней для поступающих.
+
+        [
+          {
+            "name": "Бакалавр",
+            "ID": 1
+          }
+        ]
+        """
+        response = self.session.get(self.api.applicant_reg_degrees).json()
+        return response
+
+    @login_required
+    @timed_lru_cache(86400)
+    def university_application_types(self, degree_id: int | Literal[""] = ""):
+        """Возвращает список типов заявлений для поступающих в университет.
+
+        {
+          "defaultApplicationType": 0,
+          "availableApplicationTypes": [
+            {
+              "name": "Заявление на сдачу творческих экзаменов (бакалавриат)",
+              "ID": 4
+            },
+            {
+              "name": "Заявление на зачисление в ВУЗ (на договорной основе)",
+              "ID": 6
+            }
+          ]
+        }
+        """
+        response = self.session.get(self.api.university_application_types(degree_id))
+        return response.json()
+
+    @login_required
+    @timed_lru_cache(86400)
+    def citizenship_list(self):
+        """Возвращает список гражданств.
+
+        {
+                  "defaultCitizenship": 113,
+                  "citizenshipList": [
+            {
+              "type": 0,
+              "facultyID": 0,
+              "facultyCafedraID": 0,
+              "correspondStandardPosition": 0,
+              "name": "АБХАЗИЯ",
+              "ID": 250
+            },
+            {
+              "type": 0,
+              "facultyID": 0,
+              "facultyCafedraID": 0,
+              "correspondStandardPosition": 0,
+              "name": "АВСТРАЛИЯ",
+              "ID": 11
+            },
+            {
+              "type": 0,
+              "facultyID": 0,
+              "facultyCafedraID": 0,
+              "correspondStandardPosition": 0,
+              "name": "АВСТРИЯ",
+              "ID": 12
+            },
+            {
+              "type": 0,
+              "facultyID": 0,
+              "facultyCafedraID": 0,
+              "correspondStandardPosition": 0,
+              "name": "АЗЕРБАЙДЖАН",
+              "ID": 9
+            },
+            ...
+          ]
+        }
+        """
+        response = self.session.get(self.api.citizenship_list).json()
         return response
 
     @login_required
     @timed_lru_cache(60)
-    def student_tasks(self, countInPart, endDate, partNumber, recipientStatus, startDate, studyGroupID="-1", subjectID="-1", term="-1", topic="", tutorID="-1", year="-1"):
+    def student_tasks(
+        self,
+        countInPart,
+        endDate,
+        partNumber,
+        recipientStatus,
+        startDate,
+        studyGroupID="-1",
+        subjectID="-1",
+        term="-1",
+        topic="",
+        tutorID="-1",
+        year="-1",
+    ):
         """Возвращает все задания ученика"""
         payload = generate_payload(**locals())
         response = self.session.post(self.api.student_tasks, payload).as_object()
@@ -237,7 +369,9 @@ class PlatonusAPI(PlatonusBase):
 
     @login_required
     def recipient_task_info(self, recipient_task_id):
-        response = self.session.get(self.api.recipient_task_info(recipient_task_id)).as_object()
+        response = self.session.get(
+            self.api.recipient_task_info(recipient_task_id)
+        ).as_object()
         return response
 
     @login_required
@@ -258,18 +392,6 @@ class PlatonusAPI(PlatonusBase):
         return response
 
     @login_required
-    @timed_lru_cache(43200)
-    def student_journal(self, year: int, term: int):
-        """
-        Возвращает журнал ученика
-        Принимаемые аргументы: (см. также функцию study_years_list())
-            year - год
-            term - семестр
-        """
-        response = self.session.get(self.api.student_journal(year, term)).as_object()
-        return response
-
-    @login_required
     @timed_lru_cache(86400)
     def recipient_statuses_list(self):
         """Возвращает список всех возможных статусов задании"""
@@ -282,7 +404,7 @@ class PlatonusAPI(PlatonusBase):
         Args:
             icon_size = принимает размер иконки: small или big
         """
-        response = self.session.get(f'img/platonus-logo-{icon_size}.png', stream=True)
+        response = self.session.get(f"img/platonus-logo-{icon_size}.png", stream=True)
         return response.content
 
     def emblem_image(self):
@@ -317,7 +439,7 @@ class PlatonusAPI(PlatonusBase):
             licenceType (appType): тип лицензии / для кого предназначен - college: колледж
                                                                           university: университет
         """
-        response = self.session.get('rest/api/version').as_object()
+        response = self.session.get("rest/api/version").as_object()
         return response
 
     @timed_lru_cache(3600)
@@ -333,23 +455,6 @@ class PlatonusAPI(PlatonusBase):
         response = self.session.get(self.api.auth_type).as_object()
         return response
 
-    @timed_lru_cache(3600)
-    def has_unshown_release(self):
-        response = self.session.get(self.api.has_unshown_release).as_object()
-        return response
-
-    @login_required
-    @timed_lru_cache(60)
-    def survey_notifications(self):
-        response = self.session.get(self.api.survey_notifications).as_object()
-        return response
-
-    @login_required
-    @timed_lru_cache(60)
-    def notifications(self):
-        response = self.session.get(self.api.notifications).as_object()
-        return response
-
     @property
     def profile(self):
         return Profile(self)
@@ -357,3 +462,7 @@ class PlatonusAPI(PlatonusBase):
     @property
     def has_module(self):
         return HasModule(self)
+
+    @property
+    def has_module_license(self):
+        return HasModuleLicense(self)
